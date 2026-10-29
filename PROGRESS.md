@@ -7,7 +7,8 @@
 - [x] **Phase 3 — Weapons**: Data-driven weapon system, M416 / Operator / Desert Eagle with animations, recoil, spread, ADS, scope, reload, ammo, hit detection vs dummies, HUD, impacts, tracers. *(COMPLETED)*
 - [x] **Phase 4 — Networking**: Rooms with codes & invite links, lobby, authoritative server loop, prediction & reconciliation, interpolation, server-side hit validation with lag compensation, health, death, respawn, spawn protection. *(COMPLETED)*
 - [x] **Phase 5 — Match logic & UI**: Team Deathmatch rules, team assignment, scoreboard, kill feed, timer, end-of-match leaderboard, rematch, host controls, reconnection, global leaderboard. *(COMPLETED)*
-- [ ] **Phase 6 — Final art & map**: Replace greybox with realistic warehouse (PBR, lighting, props, LODs), realistic character models & animations, weapon models, VFX, post-processing & quality presets. *(NEXT)*
+- [x] **Phase 6 — Final art & map**: Replace greybox with realistic warehouse (PBR, lighting, props, LODs), realistic character models & animations, weapon models, VFX, post-processing & quality presets. *(COMPLETED)*
+- [ ] **Phase 7 — Audio**: Sound effects, positional audio, reverb, occlusion filter, mixer settings. *(NEXT)*
 - [ ] **Phase 6 — Final art & map**: Replace greybox with realistic warehouse (PBR, lighting, props, LODs), realistic character models & animations, weapon models, VFX, post-processing & quality presets.
 - [ ] **Phase 7 — Audio**: Sound effects, positional audio, reverb, occlusion filter, mixer settings.
 - [ ] **Phase 8 — Settings & polish**: Settings panel, key rebinding, crosshair editor, loading screens, error states, cold-start UI, accessibility options.

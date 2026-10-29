@@ -187,3 +187,4 @@ export class MatchEndScreen {
     document.head.appendChild(style);
   }
 }
+

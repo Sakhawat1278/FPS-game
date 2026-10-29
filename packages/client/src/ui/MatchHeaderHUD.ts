@@ -120,3 +120,4 @@ export class MatchHeaderHUD {
     document.head.appendChild(style);
   }
 }
+

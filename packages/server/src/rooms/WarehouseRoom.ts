@@ -56,8 +56,12 @@ export class WarehouseRoom extends Room<WarehouseRoomState> {
   async onCreate(options: JoinOptions) {
     this.setState(new WarehouseRoomState());
 
-    // Generate room code
-    this.state.roomCode = options.roomCode || generateRoomCode(6);
+    // Generate room code (guarantee valid 6-character code)
+    if (options.roomCode && options.roomCode.trim().length > 0 && options.roomCode.toUpperCase() !== 'UNDEFINED') {
+      this.state.roomCode = options.roomCode.trim().toUpperCase();
+    } else {
+      this.state.roomCode = generateRoomCode(6);
+    }
     this.setMetadata({ roomCode: this.state.roomCode });
 
     this.autoDispose = true;

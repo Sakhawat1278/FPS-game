@@ -199,3 +199,4 @@ export class PauseMenu {
     document.head.appendChild(style);
   }
 }
+

@@ -123,3 +123,4 @@ export class KillFeed {
     document.head.appendChild(style);
   }
 }
+

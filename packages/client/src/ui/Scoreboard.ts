@@ -211,3 +211,4 @@ export class Scoreboard {
     document.head.appendChild(style);
   }
 }
+

@@ -132,7 +132,7 @@ export class NetworkController {
     const options: any = {
       nickname: 'Soldier_' + Math.floor(Math.random() * 900 + 100)
     };
-    if (roomCodeFromUrl) {
+    if (roomCodeFromUrl && roomCodeFromUrl.trim().length > 0 && roomCodeFromUrl.toUpperCase() !== 'UNDEFINED') {
       options.roomCode = roomCodeFromUrl.trim().toUpperCase();
     }
 

@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import RAPIER from '@dimforge/rapier3d-compat';
 import { WAREHOUSE_MAP } from '@warehouse-strike/shared';
 import { InputManager } from './core/InputManager';
-import { WarehouseWorld } from './world/WarehouseWorld';
+import { RealisticWarehouse } from './world/RealisticWarehouse';
 import { CharacterController } from './core/CharacterController';
 import { Viewmodel } from './rendering/Viewmodel';
 import { DebugOverlay } from './ui/DebugOverlay';
@@ -18,8 +18,8 @@ import { KillFeed, KillFeedItem } from './ui/KillFeed';
 import { Scoreboard } from './ui/Scoreboard';
 import { MatchEndScreen } from './ui/MatchEndScreen';
 import { PauseMenu } from './ui/PauseMenu';
+import { PostprocessingManager } from './rendering/PostprocessingManager';
 
-// Anonymous device ID generator for localStorage persistence
 function getOrCreateDeviceId(): string {
   let id = localStorage.getItem('warehouse_strike_device_id');
   if (!id) {
@@ -30,7 +30,7 @@ function getOrCreateDeviceId(): string {
 }
 
 async function bootstrap() {
-  console.log('[Warehouse Strike] Initializing Phase 5 Match Logic & Full UI Flow...');
+  console.log('[Warehouse Strike] Initializing Phase 6 Realistic Art & Map...');
   await RAPIER.init();
 
   const canvas = document.getElementById('game-canvas') as HTMLCanvasElement;
@@ -47,14 +47,14 @@ async function bootstrap() {
     powerPreference: 'high-performance'
   });
   renderer.setSize(window.innerWidth, window.innerHeight);
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
   // Scene & Camera
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x0e1117);
-  scene.fog = new THREE.FogExp2(0x0e1117, 0.016);
+  scene.background = new THREE.Color(0x0c0f14);
+  scene.fog = new THREE.FogExp2(0x0c0f14, 0.014);
 
   const camera = new THREE.PerspectiveCamera(90, window.innerWidth / window.innerHeight, 0.05, 500);
   scene.add(camera);
@@ -62,9 +62,12 @@ async function bootstrap() {
   // Rapier Physics
   const rapierWorld = new RAPIER.World({ x: 0, y: -24.0, z: 0 });
 
-  // Map & Lighting
-  const warehouse = new WarehouseWorld(scene, rapierWorld);
+  // Realistic PBR Warehouse World (Replaces Greybox)
+  const warehouse = new RealisticWarehouse(scene, rapierWorld);
   await warehouse.build();
+
+  // Postprocessing Chain (ACES Filmic, Unreal Bloom)
+  const postprocessing = new PostprocessingManager(renderer, scene, camera);
 
   // Audio Engine & VFX
   const audio = new ProceduralAudio();
@@ -116,7 +119,6 @@ async function bootstrap() {
 
   // Network Controller
   const networkController = new NetworkController(scene, charController, audio);
-
   let localPlayerName = 'Soldier';
 
   try {
@@ -126,14 +128,12 @@ async function bootstrap() {
     matchEndScreen.bindRoom(room);
 
     if (connStatusEl) connStatusEl.innerText = `Connected (${room.sessionId})`;
-    if (roomInfoEl) roomInfoEl.innerText = `Room: ${room.state.roomCode} | TDM Match Active`;
+    if (roomInfoEl) roomInfoEl.innerText = `Room: ${room.state.roomCode} | Realistic PBR Warehouse`;
 
-    // Listen to authoritative kill feed broadcasts from server
     room.onMessage('kill_feed_event', (item: KillFeedItem) => {
       killFeed.addEntry(item, localPlayerName);
     });
 
-    // Listen to state changes
     room.onStateChange((state) => {
       const me = state.players.get(room.sessionId);
       if (me) localPlayerName = me.name;
@@ -146,7 +146,6 @@ async function bootstrap() {
       }
     });
 
-    // Authoritative hit events
     networkController.onHitEvent = (event) => {
       if (event.shooterId === room.sessionId) {
         weaponHUD.showHit({
@@ -169,9 +168,10 @@ async function bootstrap() {
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);
+    postprocessing.resize(window.innerWidth, window.innerHeight);
   });
 
-  // Render & Simulation Loop
+  // Render Loop
   let lastTime = performance.now();
   let clientTick = 0;
 
@@ -189,13 +189,11 @@ async function bootstrap() {
       clickToPlayEl.style.opacity = inputManager.isLocked && !pauseMenu.isVisible ? '0' : '1';
     }
 
-    // Toggle Scoreboard when holding Tab
     scoreboard.setVisible(inputManager.isTabDown);
 
-    // 1. Sample input
     const input = inputManager.sampleInput(clientTick);
 
-    // 2. Firing Logic
+    // Firing Logic
     if (input.isShooting && inputManager.isLocked && networkController.isLocalAlive && !pauseMenu.isVisible) {
       const fired = weaponManager.tryFire(now, charController.isSprinting, dummies, warehouse.mapGroup);
       if (fired) {
@@ -204,22 +202,18 @@ async function bootstrap() {
       }
     }
 
-    // 3. Recoil Kick
+    // Recoil
     const effectivePitch = input.pitch + weaponManager.recoilSystem.currentPitchRecoil;
     const effectiveYaw = input.yaw + weaponManager.recoilSystem.currentYawRecoil;
 
-    // 4. Character Controller
+    // Movement & Kinematics
     input.pitch = effectivePitch;
     input.yaw = effectiveYaw;
     charController.update(input, dt);
 
-    // 5. Netcode input streaming
     networkController.sendInput(input);
-
-    // 6. Step Local Rapier
     rapierWorld.step();
 
-    // 7. Weapons Update
     weaponManager.update(
       dt,
       input.isAiming,
@@ -229,7 +223,6 @@ async function bootstrap() {
       dummies
     );
 
-    // 8. Viewmodel Update
     viewmodel.setWeapon(weaponManager.activeWeapon.id);
     viewmodel.update(
       dt,
@@ -243,16 +236,12 @@ async function bootstrap() {
       weaponManager.recoilSystem.viewmodelKickPitch
     );
 
-    // 9. Entity Interpolation & Server Reconciliation
     networkController.update(Date.now(), camera.position);
-
-    // 10. VFX
     vfx.update(dt);
 
-    // 11. Render
-    renderer.render(scene, camera);
+    // Render through Postprocessing Composer
+    postprocessing.render(dt * 1000);
 
-    // 12. Weapon HUD & Debug Telemetry
     weaponHUD.update(dt, weaponManager);
     debugOverlay.update(charController);
   }
