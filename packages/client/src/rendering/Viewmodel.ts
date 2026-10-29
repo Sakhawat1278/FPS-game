@@ -25,14 +25,30 @@ export class Viewmodel {
   // Offsets
   private defaultHipPosition = new THREE.Vector3(0.22, -0.20, -0.42);
   private defaultAdsPosition = new THREE.Vector3(0.0, -0.145, -0.32);
-  private m4HipPosition = new THREE.Vector3(0.0, 0.0, 0.0);
-  private m4AdsPosition = new THREE.Vector3(-0.071, 0.025, 0.04);
+  private m4HipPosition = new THREE.Vector3(0.02, -0.045, -0.15);
+  private m4AdsPosition = new THREE.Vector3(-0.0493, 0.0932, -0.12);
   private currentBasePos = new THREE.Vector3().copy(this.m4HipPosition);
 
   constructor(camera: THREE.Camera) {
     this.camera = camera;
     this.group = new THREE.Group();
     this.camera.add(this.group);
+
+    // Dedicated Viewmodel Studio Light Rig (matches Sketchfab showcase lighting)
+    const keyLight = new THREE.DirectionalLight(0xfff5ea, 3.2);
+    keyLight.position.set(0.6, 1.2, 0.4);
+    this.group.add(keyLight);
+
+    const fillLight = new THREE.DirectionalLight(0xdbeafe, 1.8);
+    fillLight.position.set(-1.0, 0.4, -0.2);
+    this.group.add(fillLight);
+
+    const underLight = new THREE.DirectionalLight(0xffedd5, 1.4);
+    underLight.position.set(0.1, -1.0, -0.3);
+    this.group.add(underLight);
+
+    const vmAmbient = new THREE.AmbientLight(0xffffff, 1.2);
+    this.group.add(vmAmbient);
 
     // Build models for all three weapons
     this.weapons = {
@@ -85,15 +101,28 @@ export class Viewmodel {
           model.position.set(0.0109, -1.5393, -0.1006);
         }
 
-        // Traversal for shadows and PBR material setup
+        // Traversal for PBR materials & textures setup
         model.traverse((child) => {
           if ((child as THREE.Mesh).isMesh) {
-            child.castShadow = true;
-            child.receiveShadow = true;
-            const mat = (child as THREE.Mesh).material as THREE.MeshStandardMaterial;
+            child.castShadow = false;
+            child.receiveShadow = false; // Prevent environmental shadow acne
+            const mesh = child as THREE.Mesh;
+            const mat = mesh.material as THREE.MeshStandardMaterial;
             if (mat) {
               mat.depthWrite = true;
-              mat.roughness = Math.min(0.65, mat.roughness || 0.5);
+              mat.depthTest = true;
+              mat.roughness = 0.55;
+              mat.metalness = mat.name.includes('M4') ? 0.12 : 0.02;
+              if (mat.map) {
+                mat.map.colorSpace = THREE.SRGBColorSpace;
+                mat.map.anisotropy = 8;
+                mat.map.needsUpdate = true;
+              }
+              if (mat.normalMap) {
+                mat.normalMap.anisotropy = 8;
+                mat.normalScale.set(1.2, 1.2);
+                mat.normalMap.needsUpdate = true;
+              }
               mat.needsUpdate = true;
             }
           }
@@ -121,15 +150,15 @@ export class Viewmodel {
             action.timeScale = 3.2; // Snappy automatic fire cycle for 700 RPM
           } else if (clip.name === 'Reload') {
             action.setLoop(THREE.LoopOnce, 1);
-            action.clampWhenFinished = false;
+            action.clampWhenFinished = true;
             action.timeScale = 1.65; // Matches 2.2s tactical reload
           } else if (clip.name === 'Reload_Empty') {
             action.setLoop(THREE.LoopOnce, 1);
-            action.clampWhenFinished = false;
+            action.clampWhenFinished = true;
             action.timeScale = 1.36; // Matches 2.8s empty reload
           } else if (clip.name === 'Draw') {
             action.setLoop(THREE.LoopOnce, 1);
-            action.clampWhenFinished = false;
+            action.clampWhenFinished = true;
             action.timeScale = 1.4;
           } else if (clip.name === 'Holster') {
             action.setLoop(THREE.LoopOnce, 1);

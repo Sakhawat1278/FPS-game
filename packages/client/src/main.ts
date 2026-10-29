@@ -65,7 +65,7 @@ async function bootstrap() {
   scene.fog = new THREE.FogExp2(0xfef08a, 0.0035);
 
   const initialFOV = settingsManager.current.video.fov || 90;
-  const camera = new THREE.PerspectiveCamera(initialFOV, window.innerWidth / window.innerHeight, 0.05, 500);
+  const camera = new THREE.PerspectiveCamera(initialFOV, window.innerWidth / window.innerHeight, 0.01, 500);
   scene.add(camera);
 
   // Rapier Physics
@@ -75,6 +75,11 @@ async function bootstrap() {
   loadingScreen.setProgress(55, 'GENERATING REALISTIC PBR WAREHOUSE...');
   const warehouse = new RealisticWarehouse(scene, rapierWorld);
   await warehouse.build();
+
+  // Generate realistic PBR environment reflections from sunrise sky
+  const pmremGenerator = new THREE.PMREMGenerator(renderer);
+  pmremGenerator.compileEquirectangularShader();
+  scene.environment = pmremGenerator.fromScene(scene, 0.04).texture;
 
   // Postprocessing Chain (ACES Filmic, Unreal Bloom)
   loadingScreen.setProgress(75, 'INITIALIZING POSTPROCESSING & AUDIO...');
