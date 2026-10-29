@@ -132,12 +132,16 @@ export class TargetDummy {
   }
 
   public update(dt: number, cameraPosition: THREE.Vector3) {
-    // Face health bar to camera
-    this.healthBarBg.lookAt(cameraPosition.x, this.healthBarBg.position.y + this.group.position.y, cameraPosition.z);
-    this.healthBarMesh.quaternion.copy(this.healthBarBg.quaternion);
+    const distSq = this.group.position.distanceToSquared(cameraPosition);
 
-    // Update 3D Tactical Soldier idle breathing & rifle stance
-    if (this.isAlive) {
+    // Face health bar to camera only if within visible range (40m)
+    if (distSq < 1600) {
+      this.healthBarBg.lookAt(cameraPosition.x, this.healthBarBg.position.y + this.group.position.y, cameraPosition.z);
+      this.healthBarMesh.quaternion.copy(this.healthBarBg.quaternion);
+    }
+
+    // Update 3D Tactical Soldier idle breathing & rifle stance (within 45m)
+    if (this.isAlive && distSq < 2025) {
       this.soldier.update(dt, {
         speed: 0,
         isGrounded: true,

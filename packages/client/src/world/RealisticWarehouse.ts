@@ -151,8 +151,8 @@ export class RealisticWarehouse {
     sunLight.position.set(30, 35, 0);
     sunLight.target.position.copy(mapCenter);
     sunLight.castShadow = true;
-    sunLight.shadow.mapSize.width = 2048;
-    sunLight.shadow.mapSize.height = 2048;
+    sunLight.shadow.mapSize.width = 1024;
+    sunLight.shadow.mapSize.height = 1024;
     sunLight.shadow.camera.near = 1.0;
     sunLight.shadow.camera.far = 120;
     sunLight.shadow.camera.left = -40;

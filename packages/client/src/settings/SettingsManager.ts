@@ -74,7 +74,7 @@ export const DEFAULT_SETTINGS: GameSettings = {
   },
   video: {
     fov: 90,
-    preset: 'high',
+    preset: 'medium',
     bloom: true,
     shadows: true
   },

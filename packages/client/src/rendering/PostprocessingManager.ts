@@ -11,7 +11,7 @@ export class PostprocessingManager {
   private renderPass: RenderPass;
   private bloomPass: UnrealBloomPass;
 
-  public currentPreset: QualityPreset = 'high';
+  public currentPreset: QualityPreset = 'medium';
   private frameTimes: number[] = [];
   private lastAutoAdjust: number = performance.now();
 
@@ -29,10 +29,10 @@ export class PostprocessingManager {
 
     // Subtle bloom (controlled threshold so only glowing emissive sparks bloom, never floors or walls)
     const resolution = new THREE.Vector2(window.innerWidth, window.innerHeight);
-    this.bloomPass = new UnrealBloomPass(resolution, 0.04, 0.25, 0.98);
+    this.bloomPass = new UnrealBloomPass(resolution, 0.03, 0.25, 0.98);
     this.composer.addPass(this.bloomPass);
 
-    this.applyPreset('high');
+    this.applyPreset('medium');
   }
 
   public setPreset(preset: QualityPreset) {
