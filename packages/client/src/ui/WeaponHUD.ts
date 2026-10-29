@@ -1,5 +1,6 @@
 import { WeaponManager } from '../weapons/WeaponManager';
 import { DummyHitResult } from '../entities/TargetDummy';
+import { settingsManager } from '../settings/SettingsManager';
 
 export class WeaponHUD {
   private container: HTMLElement;
@@ -193,8 +194,41 @@ export class WeaponHUD {
       if (this.scopeOverlayEl) this.scopeOverlayEl.style.display = 'none';
       if (this.crosshairEl) {
         this.crosshairEl.style.display = 'flex';
-        // Base gap in pixels proportional to spread
-        const gapPx = Math.round(wm.recoilSystem.currentSpread * 350) + 6;
+        const chSettings = settingsManager.current.crosshair;
+
+        // Apply custom crosshair color, size, thickness
+        const lines = this.crosshairEl.querySelectorAll('.ch-line') as NodeListOf<HTMLElement>;
+        lines.forEach((l) => {
+          l.style.background = chSettings.color;
+          l.style.boxShadow = `0 0 3px ${chSettings.color}`;
+        });
+
+        const chDot = this.crosshairEl.querySelector('.ch-dot') as HTMLElement;
+        if (chDot) {
+          chDot.style.background = chSettings.color;
+          chDot.style.display = chSettings.style === 'dot' || chSettings.style === 'cross' ? 'block' : 'none';
+        }
+
+        if (this.chTop && this.chBottom) {
+          this.chTop.style.width = `${chSettings.thickness}px`;
+          this.chTop.style.height = `${chSettings.size}px`;
+          this.chBottom.style.width = `${chSettings.thickness}px`;
+          this.chBottom.style.height = `${chSettings.size}px`;
+          this.chTop.style.display = chSettings.style === 'dot' ? 'none' : 'block';
+          this.chBottom.style.display = chSettings.style === 'dot' ? 'none' : 'block';
+        }
+
+        if (this.chLeft && this.chRight) {
+          this.chLeft.style.height = `${chSettings.thickness}px`;
+          this.chLeft.style.width = `${chSettings.size}px`;
+          this.chRight.style.height = `${chSettings.thickness}px`;
+          this.chRight.style.width = `${chSettings.size}px`;
+          this.chLeft.style.display = chSettings.style === 'dot' ? 'none' : 'block';
+          this.chRight.style.display = chSettings.style === 'dot' ? 'none' : 'block';
+        }
+
+        // Base gap + spread dynamic expansion
+        const gapPx = Math.round(wm.recoilSystem.currentSpread * 350) + chSettings.gap;
         if (this.chTop) this.chTop.style.transform = `translateY(-${gapPx}px)`;
         if (this.chBottom) this.chBottom.style.transform = `translateY(${gapPx}px)`;
         if (this.chLeft) this.chLeft.style.transform = `translateX(-${gapPx}px)`;

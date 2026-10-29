@@ -3,6 +3,7 @@ export class PauseMenu {
   public isVisible: boolean = false;
   private canvas: HTMLCanvasElement;
   private leaderboardModalEl: HTMLElement | null = null;
+  public onOpenSettings?: () => void;
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
@@ -16,6 +17,7 @@ export class PauseMenu {
         <div class="pause-sub">PAUSED</div>
         <div class="pause-btn-list">
           <button id="btn-pause-resume" class="btn-pause btn-primary">Resume</button>
+          <button id="btn-pause-settings" class="btn-pause">Settings</button>
           <button id="btn-pause-lb" class="btn-pause">Global Leaderboard</button>
           <button id="btn-pause-leave" class="btn-pause btn-danger">Leave Match</button>
         </div>
@@ -72,6 +74,10 @@ export class PauseMenu {
     document.getElementById('btn-pause-resume')?.addEventListener('click', () => {
       this.hide();
       this.canvas.requestPointerLock();
+    });
+
+    document.getElementById('btn-pause-settings')?.addEventListener('click', () => {
+      if (this.onOpenSettings) this.onOpenSettings();
     });
 
     document.getElementById('btn-pause-lb')?.addEventListener('click', () => {

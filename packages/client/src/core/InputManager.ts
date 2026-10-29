@@ -1,4 +1,5 @@
 import { PlayerInput } from '@warehouse-strike/shared';
+import { settingsManager } from '../settings/SettingsManager';
 
 export class InputManager {
   private canvas: HTMLCanvasElement;
@@ -13,9 +14,6 @@ export class InputManager {
   // Look angles (radians)
   public yaw: number = 0;
   public pitch: number = 0;
-
-  // Sensitivity
-  public mouseSensitivity: number = 0.0022;
 
   // Sequencer
   private seq: number = 0;
@@ -48,10 +46,13 @@ export class InputManager {
     document.addEventListener('mousemove', (e) => {
       if (!this.isPointerLocked) return;
 
-      this.yaw -= e.movementX * this.mouseSensitivity;
-      this.pitch -= e.movementY * this.mouseSensitivity;
+      const s = settingsManager.current.controls;
+      const baseSens = s.sensitivity * 0.001;
+      const invert = s.invertY ? -1 : 1;
 
-      // Clamp pitch to [-89 deg, +89 deg] in radians
+      this.yaw -= e.movementX * baseSens;
+      this.pitch -= e.movementY * baseSens * invert;
+
       const maxPitch = (89 * Math.PI) / 180;
       this.pitch = Math.max(-maxPitch, Math.min(maxPitch, this.pitch));
     });
@@ -68,35 +69,34 @@ export class InputManager {
       if (e.button === 2) this.isRmbDown = false;
     });
 
-    // Prevent context menu on right click
     window.addEventListener('contextmenu', (e) => {
       e.preventDefault();
     });
 
-    // Mouse wheel for Operator zoom / swap
     window.addEventListener('wheel', (e) => {
       if (!this.isPointerLocked) return;
       if (this.onToggleZoom) this.onToggleZoom();
     });
 
-    // Keyboard keys
+    // Keyboard keys (using dynamic rebindable keycodes)
     window.addEventListener('keydown', (e) => {
       const code = e.code;
       this.keys[code] = true;
+      const b = settingsManager.current.controls.bindings;
 
-      if (code === 'Tab') {
+      if (code === b.scoreboard) {
         e.preventDefault();
         this.isTabDown = true;
       } else if (code === 'F3') {
         e.preventDefault();
         if (this.onDebugToggle) this.onDebugToggle();
-      } else if (code === 'KeyR') {
+      } else if (code === b.reload) {
         if (this.onReload) this.onReload();
-      } else if (code === 'Digit1') {
+      } else if (code === b.slot1) {
         if (this.onSlot1) this.onSlot1();
-      } else if (code === 'Digit2') {
+      } else if (code === b.slot2) {
         if (this.onSlot2) this.onSlot2();
-      } else if (code === 'KeyQ') {
+      } else if (code === b.swapWeapon) {
         if (this.onSwapPrimary) this.onSwapPrimary();
       } else if (code === 'KeyZ') {
         if (this.onToggleZoom) this.onToggleZoom();
@@ -105,7 +105,8 @@ export class InputManager {
 
     window.addEventListener('keyup', (e) => {
       this.keys[e.code] = false;
-      if (e.code === 'Tab') {
+      const b = settingsManager.current.controls.bindings;
+      if (codeOrTab(e.code, b.scoreboard)) {
         e.preventDefault();
         this.isTabDown = false;
       }
@@ -124,17 +125,18 @@ export class InputManager {
   public sampleInput(tick: number): PlayerInput {
     this.seq++;
 
+    const b = settingsManager.current.controls.bindings;
     let moveForward = 0;
     let moveRight = 0;
 
-    if (this.keys['KeyW'] || this.keys['ArrowUp']) moveForward += 1;
-    if (this.keys['KeyS'] || this.keys['ArrowDown']) moveForward -= 1;
-    if (this.keys['KeyD'] || this.keys['ArrowRight']) moveRight += 1;
-    if (this.keys['KeyA'] || this.keys['ArrowLeft']) moveRight -= 1;
+    if (this.keys[b.forward]) moveForward += 1;
+    if (this.keys[b.backward]) moveForward -= 1;
+    if (this.keys[b.right]) moveRight += 1;
+    if (this.keys[b.left]) moveRight -= 1;
 
-    const isSprinting = Boolean(this.keys['ShiftLeft'] || this.keys['ShiftRight']);
-    const isCrouching = Boolean(this.keys['ControlLeft'] || this.keys['KeyC']);
-    const isJumping = Boolean(this.keys['Space']);
+    const isSprinting = Boolean(this.keys[b.sprint]);
+    const isCrouching = Boolean(this.keys[b.crouch]);
+    const isJumping = Boolean(this.keys[b.jump]);
 
     return {
       seq: this.seq,
@@ -152,3 +154,8 @@ export class InputManager {
     };
   }
 }
+
+function codeOrTab(code: string, bound: string): boolean {
+  return code === bound || (bound === 'Tab' && code === 'Tab');
+}
+

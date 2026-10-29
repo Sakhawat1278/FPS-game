@@ -9,6 +9,7 @@ export class RoomLobby {
   private bravoListEl: HTMLElement | null = null;
   private startBtnEl: HTMLElement | null = null;
   private copyNoticeEl: HTMLElement | null = null;
+  public onOpenSettings?: () => void;
 
   constructor() {
     this.container = document.body;
@@ -28,6 +29,7 @@ export class RoomLobby {
           <div class="lobby-actions">
             <button id="btn-copy-code" class="btn-sm">Copy Code</button>
             <button id="btn-copy-link" class="btn-sm btn-primary">Copy Invite Link</button>
+            <button id="btn-lobby-settings" class="btn-sm">Settings</button>
           </div>
           <div id="copy-notice" style="display: none;" class="copy-notice">Copied to clipboard!</div>
         </div>
@@ -86,6 +88,10 @@ export class RoomLobby {
     btnCopyLink?.addEventListener('click', () => {
       navigator.clipboard.writeText(window.location.href);
       this.showNotice('Invite link copied!');
+    });
+
+    document.getElementById('btn-lobby-settings')?.addEventListener('click', () => {
+      if (this.onOpenSettings) this.onOpenSettings();
     });
   }
 

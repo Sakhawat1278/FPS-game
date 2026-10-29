@@ -20,6 +20,9 @@ import { Scoreboard } from './ui/Scoreboard';
 import { MatchEndScreen } from './ui/MatchEndScreen';
 import { PauseMenu } from './ui/PauseMenu';
 import { PostprocessingManager } from './rendering/PostprocessingManager';
+import { SettingsModal } from './ui/SettingsModal';
+import { LoadingScreen } from './ui/LoadingScreen';
+import { settingsManager } from './settings/SettingsManager';
 
 function getOrCreateDeviceId(): string {
   let id = localStorage.getItem('warehouse_strike_device_id');
@@ -31,8 +34,12 @@ function getOrCreateDeviceId(): string {
 }
 
 async function bootstrap() {
-  console.log('[Warehouse Strike] Initializing Phase 6 Realistic Art & Map...');
+  console.log('[Warehouse Strike] Initializing Phase 8 Settings & Polish...');
+  const loadingScreen = new LoadingScreen();
+  loadingScreen.setProgress(15, 'INITIALIZING RAPIER WASM...');
+
   await RAPIER.init();
+  loadingScreen.setProgress(35, 'SETTING UP WEBGL2 RENDERER...');
 
   const canvas = document.getElementById('game-canvas') as HTMLCanvasElement;
   const clickToPlayEl = document.getElementById('click-to-play');
@@ -57,17 +64,20 @@ async function bootstrap() {
   scene.background = new THREE.Color(0x0c0f14);
   scene.fog = new THREE.FogExp2(0x0c0f14, 0.014);
 
-  const camera = new THREE.PerspectiveCamera(90, window.innerWidth / window.innerHeight, 0.05, 500);
+  const initialFOV = settingsManager.current.video.fov || 90;
+  const camera = new THREE.PerspectiveCamera(initialFOV, window.innerWidth / window.innerHeight, 0.05, 500);
   scene.add(camera);
 
   // Rapier Physics
   const rapierWorld = new RAPIER.World({ x: 0, y: -24.0, z: 0 });
 
   // Realistic PBR Warehouse World (Replaces Greybox)
+  loadingScreen.setProgress(55, 'GENERATING REALISTIC PBR WAREHOUSE...');
   const warehouse = new RealisticWarehouse(scene, rapierWorld);
   await warehouse.build();
 
   // Postprocessing Chain (ACES Filmic, Unreal Bloom)
+  loadingScreen.setProgress(75, 'INITIALIZING POSTPROCESSING & AUDIO...');
   const postprocessing = new PostprocessingManager(renderer, scene, camera);
 
   // Audio Engine & 3D Movement Soundscape
@@ -107,6 +117,23 @@ async function bootstrap() {
   const matchEndScreen = new MatchEndScreen();
   const pauseMenu = new PauseMenu(canvas);
   const roomLobby = new RoomLobby();
+  const settingsModal = new SettingsModal();
+
+  // Settings Buttons
+  pauseMenu.onOpenSettings = () => settingsModal.show();
+  roomLobby.onOpenSettings = () => settingsModal.show();
+
+  // Apply Live Settings Updates
+  settingsManager.subscribe((s) => {
+    weaponManager.baseFOV = s.video.fov;
+    camera.fov = s.video.fov;
+    camera.updateProjectionMatrix();
+    postprocessing.setPreset(s.video.preset);
+    audio.settings.masterVolume = s.audio.master;
+    audio.settings.sfxVolume = s.audio.sfx;
+    audio.settings.footstepsVolume = s.audio.footsteps;
+    audio.settings.hitVolume = s.audio.hit;
+  });
 
   // Input Callbacks
   inputManager.onReload = () => weaponManager.startReload();
@@ -129,6 +156,7 @@ async function bootstrap() {
     const room = await networkController.connect();
     roomLobby.bindRoom(room);
     matchEndScreen.bindRoom(room);
+    loadingScreen.finish();
 
     if (connStatusEl) connStatusEl.innerText = `Connected (${room.sessionId})`;
     if (roomInfoEl) roomInfoEl.innerText = `Room: ${room.state.roomCode} | Realistic PBR Warehouse`;

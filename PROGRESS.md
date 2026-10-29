@@ -9,7 +9,8 @@
 - [x] **Phase 5 — Match logic & UI**: Team Deathmatch rules, team assignment, scoreboard, kill feed, timer, end-of-match leaderboard, rematch, host controls, reconnection, global leaderboard. *(COMPLETED)*
 - [x] **Phase 6 — Final art & map**: Replace greybox with realistic warehouse (PBR, lighting, props, LODs), realistic character models & animations, weapon models, VFX, post-processing & quality presets. *(COMPLETED)*
 - [x] **Phase 7 — Audio**: Sound effects, positional audio, reverb, occlusion filter, mixer settings. *(COMPLETED)*
-- [ ] **Phase 8 — Settings & polish**: Settings panel, key rebinding, crosshair editor, loading screens, error states, cold-start UI, accessibility options. *(NEXT)*
+- [x] **Phase 8 — Settings & polish**: Settings panel, key rebinding, crosshair editor, loading screens, error states, cold-start UI, accessibility options. *(COMPLETED)*
+- [ ] **Phase 9 — Optimization & hardening**: Profiling & optimization (draw calls, GC, memory, bandwidth), anti-cheat checks, load tests, cross-browser checks. *(NEXT)*
 - [ ] **Phase 6 — Final art & map**: Replace greybox with realistic warehouse (PBR, lighting, props, LODs), realistic character models & animations, weapon models, VFX, post-processing & quality presets.
 - [ ] **Phase 7 — Audio**: Sound effects, positional audio, reverb, occlusion filter, mixer settings.
 - [ ] **Phase 8 — Settings & polish**: Settings panel, key rebinding, crosshair editor, loading screens, error states, cold-start UI, accessibility options.
