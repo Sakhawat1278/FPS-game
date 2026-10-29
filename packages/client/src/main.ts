@@ -344,16 +344,18 @@ async function bootstrap() {
     localSoldier.group.visible = charController.isThirdPerson;
     viewmodel.group.visible = !charController.isThirdPerson;
 
-    localSoldier.update(dt, {
-      speed: charController.horizontalSpeed,
-      isGrounded: charController.isGrounded,
-      isCrouched: charController.isCrouched,
-      isSprinting: effectiveSprinting,
-      pitch: input.pitch,
-      yaw: input.yaw,
-      isAlive: networkController.isLocalAlive,
-      isFiring: firedThisFrame
-    });
+    if (charController.isThirdPerson) {
+      localSoldier.update(dt, {
+        speed: charController.horizontalSpeed,
+        isGrounded: charController.isGrounded,
+        isCrouched: charController.isCrouched,
+        isSprinting: effectiveSprinting,
+        pitch: input.pitch,
+        yaw: input.yaw,
+        isAlive: networkController.isLocalAlive,
+        isFiring: firedThisFrame
+      });
+    }
 
     // Update target dummies
     for (const d of dummies) {

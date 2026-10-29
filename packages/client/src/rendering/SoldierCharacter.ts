@@ -93,9 +93,15 @@ export class SoldierCharacter {
             const root = gltf.scene;
             root.traverse((child) => {
               if ((child as THREE.Mesh).isMesh) {
-                child.castShadow = true;
-                child.receiveShadow = true;
-                const m = (child as THREE.Mesh).material as THREE.MeshStandardMaterial;
+                const mesh = child as THREE.Mesh;
+                mesh.frustumCulled = true;
+                // Only primary body & head cast shadows to keep shadow map rendering ultra fast (saves ~100k skinned vertices per shadow pass)
+                const name = mesh.name || '';
+                const isMainSilhouette = name.includes('Equip_02') || name.includes('Equip_03') || name.includes('Head');
+                mesh.castShadow = isMainSilhouette;
+                mesh.receiveShadow = false;
+
+                const m = mesh.material as THREE.MeshStandardMaterial;
                 if (m) {
                   m.roughness = Math.max(0.35, m.roughness ?? 0.5);
                   m.needsUpdate = true;
@@ -336,7 +342,7 @@ export class SoldierCharacter {
   }
 
   public update(dt: number, state: SoldierKinematicState) {
-    if (!this.isReady) return;
+    if (!this.isReady || !this.group.visible) return;
 
     // Handle Muzzle Flash decay
     if (this.muzzleFlashMesh) {
@@ -451,3 +457,4 @@ export class SoldierCharacter {
     }
   }
 }
+

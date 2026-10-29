@@ -1,5 +1,4 @@
 import * as THREE from 'three';
-import { SoldierCharacter } from '../rendering/SoldierCharacter';
 
 export interface DummyHitResult {
   hit: boolean;
@@ -17,10 +16,7 @@ export class TargetDummy {
   public health: number = 100;
   public isAlive: boolean = true;
 
-  // 3D Winter Soldier model with M416
-  public soldier: SoldierCharacter;
-
-  // Raycast Hitboxes
+  // Raycast Hitboxes & Visual Meshes
   public headMesh: THREE.Mesh;
   public bodyMesh: THREE.Mesh;
   public legsMesh: THREE.Mesh;
@@ -44,35 +40,66 @@ export class TargetDummy {
     this.group.rotation.copy(this.baseRotation);
     scene.add(this.group);
 
-    // 1. Attach 3D Winter Soldier
-    this.soldier = new SoldierCharacter('bravo');
-    this.group.add(this.soldier.group);
+    // High-performance tactical firing-range dummy materials
+    const steelBaseMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.7, metalness: 0.5 });
+    const hostileBodyMat = new THREE.MeshStandardMaterial({ color: 0xc2410c, roughness: 0.5, metalness: 0.2 });
+    const targetCenterMat = new THREE.MeshStandardMaterial({ color: 0xfef08a, roughness: 0.3, metalness: 0.1 });
+    const headTargetMat = new THREE.MeshStandardMaterial({ color: 0xef4444, roughness: 0.4, metalness: 0.3 });
+    const rifleMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.8, metalness: 0.6 });
 
-    // 2. Invisible Raycast Hitboxes
-    const hitMat = new THREE.MeshBasicMaterial({ visible: false });
+    // 1. Steel Stand Base
+    const standGeo = new THREE.CylinderGeometry(0.35, 0.38, 0.08, 12);
+    const stand = new THREE.Mesh(standGeo, steelBaseMat);
+    stand.position.set(0, 0.04, 0);
+    stand.receiveShadow = true;
+    this.group.add(stand);
 
-    // Legs
-    const legsGeo = new THREE.BoxGeometry(0.46, 0.8, 0.3);
-    this.legsMesh = new THREE.Mesh(legsGeo, hitMat);
-    this.legsMesh.position.set(0, 0.4, 0);
+    // 2. Legs / Support Pillars (Raycast target: body)
+    const legsGeo = new THREE.BoxGeometry(0.44, 0.76, 0.26);
+    this.legsMesh = new THREE.Mesh(legsGeo, steelBaseMat);
+    this.legsMesh.position.set(0, 0.44, 0);
+    this.legsMesh.castShadow = true;
+    this.legsMesh.receiveShadow = true;
     this.legsMesh.userData = { dummy: this, part: 'body' };
     this.group.add(this.legsMesh);
 
-    // Torso / Body
-    const bodyGeo = new THREE.BoxGeometry(0.52, 0.65, 0.32);
-    this.bodyMesh = new THREE.Mesh(bodyGeo, hitMat);
-    this.bodyMesh.position.set(0, 1.125, 0);
+    // 3. Torso / Ballistic Armor Plate (Raycast target: body)
+    const bodyGeo = new THREE.BoxGeometry(0.52, 0.62, 0.30);
+    this.bodyMesh = new THREE.Mesh(bodyGeo, hostileBodyMat);
+    this.bodyMesh.position.set(0, 1.13, 0);
+    this.bodyMesh.castShadow = true;
     this.bodyMesh.userData = { dummy: this, part: 'body' };
     this.group.add(this.bodyMesh);
 
-    // Head (Headshot target sphere)
-    const headGeo = new THREE.SphereGeometry(0.19, 16, 16);
-    this.headMesh = new THREE.Mesh(headGeo, hitMat);
-    this.headMesh.position.set(0, 1.64, 0);
+    // Bullseye Target Disc on Torso
+    const discGeo = new THREE.CylinderGeometry(0.12, 0.12, 0.02, 12);
+    const targetDisc = new THREE.Mesh(discGeo, targetCenterMat);
+    targetDisc.rotation.x = Math.PI / 2;
+    targetDisc.position.set(0, 1.13, -0.16);
+    this.group.add(targetDisc);
+
+    // 4. Head Target Silhouette (Raycast target: head)
+    const headGeo = new THREE.SphereGeometry(0.18, 12, 12);
+    this.headMesh = new THREE.Mesh(headGeo, headTargetMat);
+    this.headMesh.position.set(0, 1.62, 0);
+    this.headMesh.castShadow = true;
     this.headMesh.userData = { dummy: this, part: 'head' };
     this.group.add(this.headMesh);
 
-    // 3. Floating Health Bar
+    // Steel Helmet Plate
+    const helmetGeo = new THREE.SphereGeometry(0.20, 12, 12, 0, Math.PI * 2, 0, Math.PI / 1.8);
+    const helmet = new THREE.Mesh(helmetGeo, steelBaseMat);
+    helmet.position.set(0, 1.63, 0);
+    helmet.castShadow = true;
+    this.group.add(helmet);
+
+    // 5. Training Weapon Prop Silhouette
+    const gunBody = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.08, 0.44), rifleMat);
+    gunBody.position.set(0.18, 1.05, -0.22);
+    gunBody.castShadow = true;
+    this.group.add(gunBody);
+
+    // 6. Floating Health Bar
     const bgGeo = new THREE.PlaneGeometry(0.65, 0.08);
     const bgMat = new THREE.MeshBasicMaterial({ color: 0x0f172a, side: THREE.DoubleSide });
     this.healthBarBg = new THREE.Mesh(bgGeo, bgMat);
@@ -109,14 +136,6 @@ export class TargetDummy {
       isKilled = true;
       this.isAlive = false;
       this.respawnTimer = 3.0; // 3 seconds respawn
-      this.soldier.update(0.016, {
-        speed: 0,
-        isGrounded: true,
-        isCrouched: false,
-        isSprinting: false,
-        pitch: 0,
-        isAlive: false
-      });
       this.group.rotation.x = -Math.PI / 2;
       this.group.position.y = 0.2;
     }
@@ -136,18 +155,6 @@ export class TargetDummy {
     this.healthBarBg.lookAt(cameraPosition.x, this.healthBarBg.position.y + this.group.position.y, cameraPosition.z);
     this.healthBarMesh.quaternion.copy(this.healthBarBg.quaternion);
 
-    // Update Winter Soldier idle breathing / weapon stance
-    if (this.isAlive) {
-      this.soldier.update(dt, {
-        speed: 0,
-        isGrounded: true,
-        isCrouched: false,
-        isSprinting: false,
-        pitch: 0,
-        isAlive: true
-      });
-    }
-
     // Respawn countdown
     if (!this.isAlive) {
       this.respawnTimer -= dt;
@@ -165,19 +172,9 @@ export class TargetDummy {
     this.healthBarMesh.scale.x = 1.0;
     this.healthBarMesh.position.x = 0;
     (this.healthBarMesh.material as THREE.MeshBasicMaterial).color.setHex(0x10b981);
-
-    this.soldier.update(0.016, {
-      speed: 0,
-      isGrounded: true,
-      isCrouched: false,
-      isSprinting: false,
-      pitch: 0,
-      isAlive: true
-    });
   }
 
   public destroy() {
-    this.soldier.destroy();
     if (this.group.parent) {
       this.group.parent.remove(this.group);
     }
