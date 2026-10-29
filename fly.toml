@@ -1,0 +1,35 @@
+app = "warehouse-strike"
+primary_region = "iad"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  NODE_ENV = "production"
+  PORT = "2567"
+  TICK_RATE = "60"
+  MAX_ROOMS = "10"
+  DB_PATH = "/var/data"
+
+[http_service]
+  internal_port = 2567
+  force_https = true
+  auto_stop_machines = false
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [http_service.concurrency]
+    type = "connections"
+    hard_limit = 250
+    soft_limit = 200
+
+[[http_service.checks]]
+  grace_period = "5s"
+  interval = "15s"
+  method = "GET"
+  timeout = "2s"
+  path = "/health"
+
+[mounts]
+  source = "warehouse_data"
+  destination = "/var/data"

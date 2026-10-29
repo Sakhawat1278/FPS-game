@@ -8,12 +8,15 @@
     "dev:server": "pnpm --filter @warehouse-strike/server dev",
     "dev:client": "pnpm --filter @warehouse-strike/client dev",
     "lint": "pnpm -r lint",
-    "test": "pnpm -r test"
+    "test": "vitest run",
+    "test:unit": "vitest run",
+    "test:load": "tsx tools/bot-load-test.ts"
   },
   "devDependencies": {
     "colyseus.js": "0.15.28",
     "concurrently": "^9.1.2",
     "tsx": "^4.23.15",
-    "typescript": "^5.8.2"
+    "typescript": "^5.8.2",
+    "vitest": "^5.0.5"
   }
 }

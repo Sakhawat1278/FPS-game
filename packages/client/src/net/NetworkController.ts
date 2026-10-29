@@ -38,7 +38,8 @@ export class NetworkController {
     this.charController = charController;
     this.audio = audio;
 
-    const serverUrl = window.location.hostname === 'localhost'
+    const isViteDev = window.location.hostname === 'localhost' && window.location.port === '5173';
+    const serverUrl = isViteDev
       ? 'ws://localhost:2567'
       : `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}`;
     this.client = new Client(serverUrl);

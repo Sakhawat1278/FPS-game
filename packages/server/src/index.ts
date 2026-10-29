@@ -1,4 +1,6 @@
 import http from 'http';
+import path from 'path';
+import fs from 'fs';
 import express from 'express';
 import cors from 'cors';
 import { Server } from 'colyseus';
@@ -54,6 +56,28 @@ app.post('/api/leaderboard/record', (req, res) => {
 
 // Colyseus dashboard monitor
 app.use('/colyseus', monitor());
+
+// Serve client static dist if available (production / container single-port mode)
+const clientDistCandidates = [
+  path.resolve(__dirname, '../../client/dist'),
+  path.resolve(process.cwd(), 'packages/client/dist'),
+  path.resolve(process.cwd(), 'client/dist'),
+  path.resolve(__dirname, '../public')
+];
+
+for (const clientDist of clientDistCandidates) {
+  if (fs.existsSync(clientDist)) {
+    console.log(`[Server] Serving production static client build from: ${clientDist}`);
+    app.use(express.static(clientDist));
+    app.get('*', (req, res, next) => {
+      if (req.path.startsWith('/api') || req.path.startsWith('/health') || req.path.startsWith('/colyseus')) {
+        return next();
+      }
+      res.sendFile(path.join(clientDist, 'index.html'));
+    });
+    break;
+  }
+}
 
 const server = http.createServer(app);
 

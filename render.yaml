@@ -1,0 +1,25 @@
+services:
+  - type: web
+    name: warehouse-strike
+    runtime: docker
+    plan: free
+    region: oregon
+    branch: master
+    dockerfilePath: Dockerfile
+    autoDeploy: true
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: TICK_RATE
+        value: 60
+      - key: MAX_ROOMS
+        value: 10
+      - key: DB_PATH
+        value: /var/data
+    disk:
+      name: warehouse-data
+      mountPath: /var/data
+      sizeGB: 1
