@@ -59,10 +59,10 @@ async function bootstrap() {
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
-  // Scene & Camera - Vibrant Sunrise Atmosphere
+  // Scene & Camera - High-Contrast Morning Atmosphere
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color(0xfde68a);
-  scene.fog = new THREE.FogExp2(0xfef08a, 0.0035);
+  scene.background = new THREE.Color(0x38bdf8);
+  scene.fog = new THREE.FogExp2(0xb45309, 0.0008);
 
   const initialFOV = settingsManager.current.video.fov || 90;
   const camera = new THREE.PerspectiveCamera(initialFOV, window.innerWidth / window.innerHeight, 0.01, 500);

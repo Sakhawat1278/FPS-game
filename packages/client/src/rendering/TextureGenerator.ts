@@ -9,8 +9,8 @@ export class TextureGenerator {
     canvas.height = size;
     const ctx = canvas.getContext('2d')!;
 
-    // Base concrete tone - Bright realistic sunlit concrete
-    ctx.fillStyle = '#8f9aa6';
+    // Base concrete tone - Rich industrial dark slab with high contrast
+    ctx.fillStyle = '#424b54';
     ctx.fillRect(0, 0, size, size);
 
     // Subtle noise & speckles

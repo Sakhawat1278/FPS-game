@@ -41,25 +41,25 @@ export class RealisticWarehouse {
     const containerGreen = TextureGenerator.createCorrugatedMetal('#16a34a');
     containerGreen.repeat.set(4, 2);
 
-    const wallTex = TextureGenerator.createCorrugatedMetal('#94a3b8');
+    const wallTex = TextureGenerator.createCorrugatedMetal('#475569');
     wallTex.repeat.set(8, 2);
 
     const materials = {
       floor: new THREE.MeshStandardMaterial({
         map: concreteTex,
         roughnessMap: concreteRough,
-        roughness: 0.5,
-        metalness: 0.1
+        roughness: 0.65,
+        metalness: 0.05
       }),
       ceiling: new THREE.MeshStandardMaterial({
-        color: 0x94a3b8,
+        color: 0x334155,
         roughness: 0.8,
         metalness: 0.2
       }),
       wall: new THREE.MeshStandardMaterial({
         map: wallTex,
-        roughness: 0.6,
-        metalness: 0.3
+        roughness: 0.65,
+        metalness: 0.25
       }),
       wood: new THREE.MeshStandardMaterial({
         map: woodTex,
@@ -79,22 +79,22 @@ export class RealisticWarehouse {
       containerBlue: new THREE.MeshStandardMaterial({
         map: containerBlue,
         roughness: 0.45,
-        metalness: 0.5
+        metalness: 0.4
       }),
       containerOrange: new THREE.MeshStandardMaterial({
         map: containerOrange,
         roughness: 0.45,
-        metalness: 0.5
+        metalness: 0.4
       }),
       containerGreen: new THREE.MeshStandardMaterial({
         map: containerGreen,
         roughness: 0.45,
-        metalness: 0.5
+        metalness: 0.4
       }),
       pillar: new THREE.MeshStandardMaterial({
-        color: 0x64748b,
-        roughness: 0.6,
-        metalness: 0.3
+        color: 0x334155,
+        roughness: 0.7,
+        metalness: 0.1
       }),
       rackFrame: new THREE.MeshStandardMaterial({
         color: 0xf97316, // Bright safety orange pallet rack
@@ -219,17 +219,17 @@ export class RealisticWarehouse {
   }
 
   private setupLighting() {
-    // 1. Warm morning sunrise ambient light
-    const ambient = new THREE.AmbientLight(0xffedd5, 1.4);
+    // 1. Natural sunrise ambient light with shadow contrast
+    const ambient = new THREE.AmbientLight(0xffedd5, 0.45);
     this.scene.add(ambient);
 
-    // 2. Hemisphere light: morning sky blue down, golden sunrise bounce up
-    const hemiLight = new THREE.HemisphereLight(0x93c5fd, 0xfde047, 1.15);
+    // 2. Hemisphere light: clear blue morning sky down, warm terrain bounce up
+    const hemiLight = new THREE.HemisphereLight(0x38bdf8, 0x92400e, 0.5);
     hemiLight.position.set(0, 50, 0);
     this.scene.add(hemiLight);
 
-    // 3. Radiant Rising Sun Directional Light (low sunrise angle, dramatic golden rays)
-    const sunLight = new THREE.DirectionalLight(0xffb74d, 3.4);
+    // 3. Golden Rising Sun Directional Light (low sunrise angle, high-contrast shadows)
+    const sunLight = new THREE.DirectionalLight(0xffb74d, 2.2);
     sunLight.position.set(45, 26, -30);
     sunLight.castShadow = true;
     sunLight.shadow.mapSize.width = 2048;
@@ -244,7 +244,7 @@ export class RealisticWarehouse {
     this.scene.add(sunLight);
 
     // 4. Soft sky fill light from opposite horizon
-    const fillLight = new THREE.DirectionalLight(0x60a5fa, 0.9);
+    const fillLight = new THREE.DirectionalLight(0x60a5fa, 0.4);
     fillLight.position.set(-35, 20, 25);
     this.scene.add(fillLight);
 
@@ -259,7 +259,7 @@ export class RealisticWarehouse {
     ];
 
     for (const lp of lampPositions) {
-      const spot = new THREE.SpotLight(lp.color, 2.2, 35, Math.PI / 3.5, 0.45, 1.2);
+      const spot = new THREE.SpotLight(lp.color, 1.4, 30, Math.PI / 3.5, 0.45, 1.2);
       spot.position.set(lp.x, 9.6, lp.z);
       spot.target.position.set(lp.x, 0, lp.z);
       this.scene.add(spot);
