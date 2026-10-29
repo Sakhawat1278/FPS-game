@@ -51,23 +51,23 @@ export const WAREHOUSE_MAP: MapData = {
     { id: 'boundary_ceiling', x: 0, y: 12.0, z: 21.5, hx: 35.0, hy: 0.5, hz: 35.0, type: 'ceiling' }
   ],
   spawns: [
-    // Alpha Spawns (South Yard / Blue Base, Z ~ 1.0, facing North yaw = 0)
-    { id: 'alpha_spawn_1', team: 'alpha', x: -8.0, y: 1.9, z: 1.0, yaw: 0 },
-    { id: 'alpha_spawn_2', team: 'alpha', x: -4.0, y: 1.9, z: 1.0, yaw: 0 },
-    { id: 'alpha_spawn_3', team: 'alpha', x: 0.0, y: 1.9, z: 1.0, yaw: 0 },
-    { id: 'alpha_spawn_4', team: 'alpha', x: 4.0, y: 1.9, z: 1.0, yaw: 0 },
-    { id: 'alpha_spawn_5', team: 'alpha', x: 8.0, y: 1.9, z: 1.0, yaw: 0 },
+    // Alpha Spawns (South Yard / Blue Base, clear courtyard facing North yaw = 0)
+    { id: 'alpha_spawn_1', team: 'alpha', x: -4.5, y: 1.0, z: 5.5, yaw: 0 },
+    { id: 'alpha_spawn_2', team: 'alpha', x: -2.0, y: 1.0, z: 7.0, yaw: 0 },
+    { id: 'alpha_spawn_3', team: 'alpha', x:  0.0, y: 1.0, z: 7.5, yaw: 0 },
+    { id: 'alpha_spawn_4', team: 'alpha', x:  2.0, y: 1.0, z: 7.0, yaw: 0 },
+    { id: 'alpha_spawn_5', team: 'alpha', x:  4.5, y: 1.0, z: 5.5, yaw: 0 },
 
-    // Bravo Spawns (North Yard / Red Base, Z ~ 41.0, facing South yaw = Math.PI)
-    { id: 'bravo_spawn_1', team: 'bravo', x: -8.0, y: 1.9, z: 41.0, yaw: Math.PI },
-    { id: 'bravo_spawn_2', team: 'bravo', x: -4.0, y: 1.9, z: 41.0, yaw: Math.PI },
-    { id: 'bravo_spawn_3', team: 'bravo', x: 0.0, y: 1.9, z: 41.0, yaw: Math.PI },
-    { id: 'bravo_spawn_4', team: 'bravo', x: 4.0, y: 1.9, z: 41.0, yaw: Math.PI },
-    { id: 'bravo_spawn_5', team: 'bravo', x: 8.0, y: 1.9, z: 41.0, yaw: Math.PI },
+    // Bravo Spawns (North Yard / Red Base, clear courtyard facing South yaw = Math.PI)
+    { id: 'bravo_spawn_1', team: 'bravo', x: -4.5, y: 1.0, z: 34.5, yaw: Math.PI },
+    { id: 'bravo_spawn_2', team: 'bravo', x: -2.0, y: 1.0, z: 33.0, yaw: Math.PI },
+    { id: 'bravo_spawn_3', team: 'bravo', x:  0.0, y: 1.0, z: 32.5, yaw: Math.PI },
+    { id: 'bravo_spawn_4', team: 'bravo', x:  2.0, y: 1.0, z: 33.0, yaw: Math.PI },
+    { id: 'bravo_spawn_5', team: 'bravo', x:  4.5, y: 1.0, z: 34.5, yaw: Math.PI },
 
-    // Neutral Fallback Spawns (Midfield flanks & center)
-    { id: 'neutral_spawn_1', team: 'neutral', x: -15.0, y: 1.9, z: 21.5, yaw: 0 },
-    { id: 'neutral_spawn_2', team: 'neutral', x: 15.0, y: 1.9, z: 21.5, yaw: Math.PI },
-    { id: 'neutral_spawn_3', team: 'neutral', x: 0.0, y: 1.9, z: 21.5, yaw: 0 }
+    // Neutral Fallback Spawns (Midfield open flanks & central lane)
+    { id: 'neutral_spawn_1', team: 'neutral', x: -15.0, y: 1.0, z: 21.5, yaw: 0 },
+    { id: 'neutral_spawn_2', team: 'neutral', x:  15.0, y: 1.0, z: 21.5, yaw: Math.PI },
+    { id: 'neutral_spawn_3', team: 'neutral', x:   0.0, y: 1.0, z: 15.0, yaw: 0 }
   ]
 };

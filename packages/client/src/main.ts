@@ -90,13 +90,13 @@ async function bootstrap() {
   const movementAudio = new MovementAudio(audio);
   const vfx = new VFXManager(scene);
 
-  // Target Dummies placed throughout Big Map PvP Arena
+  // Target Dummies placed throughout Big Map PvP Arena (in clear open areas)
   const dummies: TargetDummy[] = [
-    new TargetDummy(scene, 'dummy_mid', 0, 1.0, 21.5, Math.PI),
-    new TargetDummy(scene, 'dummy_alpha_lane', 5.7, 1.0, 13.0, 0),
-    new TargetDummy(scene, 'dummy_bravo_lane', -3.8, 1.0, 27.2, Math.PI),
-    new TargetDummy(scene, 'dummy_west_flank', -10.0, 1.0, 20.5, Math.PI / 2),
-    new TargetDummy(scene, 'dummy_east_flank', 10.0, 1.0, 20.5, -Math.PI / 2)
+    new TargetDummy(scene, 'dummy_alpha_front', 0.0, 1.0, 12.0, 0),
+    new TargetDummy(scene, 'dummy_bravo_front', 0.0, 1.0, 28.0, Math.PI),
+    new TargetDummy(scene, 'dummy_west_corridor', -15.0, 1.0, 21.5, Math.PI / 2),
+    new TargetDummy(scene, 'dummy_east_corridor', 15.0, 1.0, 21.5, -Math.PI / 2),
+    new TargetDummy(scene, 'dummy_alpha_flank', -7.5, 1.0, 12.0, 0)
   ];
 
   // Character Controller
