@@ -13,15 +13,32 @@ import { TargetDummy } from './entities/TargetDummy';
 import { WeaponHUD } from './ui/WeaponHUD';
 import { NetworkController } from './net/NetworkController';
 import { RoomLobby } from './ui/RoomLobby';
+import { MatchHeaderHUD } from './ui/MatchHeaderHUD';
+import { KillFeed, KillFeedItem } from './ui/KillFeed';
+import { Scoreboard } from './ui/Scoreboard';
+import { MatchEndScreen } from './ui/MatchEndScreen';
+import { PauseMenu } from './ui/PauseMenu';
+
+// Anonymous device ID generator for localStorage persistence
+function getOrCreateDeviceId(): string {
+  let id = localStorage.getItem('warehouse_strike_device_id');
+  if (!id) {
+    id = 'dev_' + Math.random().toString(36).substring(2, 10) + Date.now().toString(36);
+    localStorage.setItem('warehouse_strike_device_id', id);
+  }
+  return id;
+}
 
 async function bootstrap() {
-  console.log('[Warehouse Strike] Initializing Phase 4 Authoritative Networking & Multiplayer...');
+  console.log('[Warehouse Strike] Initializing Phase 5 Match Logic & Full UI Flow...');
   await RAPIER.init();
 
   const canvas = document.getElementById('game-canvas') as HTMLCanvasElement;
   const clickToPlayEl = document.getElementById('click-to-play');
   const connStatusEl = document.getElementById('connection-status');
   const roomInfoEl = document.getElementById('room-info');
+
+  const deviceId = getOrCreateDeviceId();
 
   // WebGL2 Renderer
   const renderer = new THREE.WebGLRenderer({
@@ -42,10 +59,10 @@ async function bootstrap() {
   const camera = new THREE.PerspectiveCamera(90, window.innerWidth / window.innerHeight, 0.05, 500);
   scene.add(camera);
 
-  // Physics World (Gravity: -24 m/s^2)
+  // Rapier Physics
   const rapierWorld = new RAPIER.World({ x: 0, y: -24.0, z: 0 });
 
-  // Warehouse Map & Colliders
+  // Map & Lighting
   const warehouse = new WarehouseWorld(scene, rapierWorld);
   await warehouse.build();
 
@@ -53,7 +70,7 @@ async function bootstrap() {
   const audio = new ProceduralAudio();
   const vfx = new VFXManager(scene);
 
-  // Target Dummies for solo target practice
+  // Target Dummies
   const dummies: TargetDummy[] = [
     new TargetDummy(scene, 'dummy_near', -18, 0, -10, Math.PI / 4),
     new TargetDummy(scene, 'dummy_center_mid', 0, 0, 0, Math.PI),
@@ -73,14 +90,18 @@ async function bootstrap() {
   const inputManager = new InputManager(canvas);
   inputManager.setLook(startSpawn.yaw, 0);
 
-  // Debug Overlay (F3)
-  const debugOverlay = new DebugOverlay(renderer);
-  inputManager.onDebugToggle = () => debugOverlay.toggle();
-
-  // Weapon System & HUD
+  // Weapons & HUD
   const weaponManager = new WeaponManager(camera, audio, vfx);
   const weaponHUD = new WeaponHUD();
   weaponManager.onHit = (result) => weaponHUD.showHit(result);
+
+  // Phase 5 UI Elements
+  const matchHeader = new MatchHeaderHUD();
+  const killFeed = new KillFeed();
+  const scoreboard = new Scoreboard();
+  const matchEndScreen = new MatchEndScreen();
+  const pauseMenu = new PauseMenu(canvas);
+  const roomLobby = new RoomLobby();
 
   // Input Callbacks
   inputManager.onReload = () => weaponManager.startReload();
@@ -89,25 +110,43 @@ async function bootstrap() {
   inputManager.onSwapPrimary = () => weaponManager.togglePrimaryWeapon();
   inputManager.onToggleZoom = () => weaponManager.toggleOperatorZoom();
 
-  // Network Controller & Lobby
+  // Debug Overlay (F3)
+  const debugOverlay = new DebugOverlay(renderer);
+  inputManager.onDebugToggle = () => debugOverlay.toggle();
+
+  // Network Controller
   const networkController = new NetworkController(scene, charController, audio);
-  const roomLobby = new RoomLobby();
+
+  let localPlayerName = 'Soldier';
 
   try {
     if (connStatusEl) connStatusEl.innerText = 'Connecting to room...';
     const room = await networkController.connect();
     roomLobby.bindRoom(room);
+    matchEndScreen.bindRoom(room);
 
     if (connStatusEl) connStatusEl.innerText = `Connected (${room.sessionId})`;
-    if (roomInfoEl) roomInfoEl.innerText = `Room: ${room.state.roomCode} | 60Hz Netcode Active`;
+    if (roomInfoEl) roomInfoEl.innerText = `Room: ${room.state.roomCode} | TDM Match Active`;
 
+    // Listen to authoritative kill feed broadcasts from server
+    room.onMessage('kill_feed_event', (item: KillFeedItem) => {
+      killFeed.addEntry(item, localPlayerName);
+    });
+
+    // Listen to state changes
     room.onStateChange((state) => {
+      const me = state.players.get(room.sessionId);
+      if (me) localPlayerName = me.name;
+
+      matchHeader.update(state);
+      scoreboard.update(state, room.sessionId);
+
       if (roomInfoEl) {
         roomInfoEl.innerText = `Room: ${state.roomCode} | State: ${state.matchState} | Score: [Alpha ${state.alphaKills} - Bravo ${state.bravoKills}]`;
       }
     });
 
-    // Listen to authoritative hit events from server
+    // Authoritative hit events
     networkController.onHitEvent = (event) => {
       if (event.shooterId === room.sessionId) {
         weaponHUD.showHit({
@@ -147,46 +186,40 @@ async function bootstrap() {
     clientTick++;
 
     if (clickToPlayEl) {
-      clickToPlayEl.style.opacity = inputManager.isLocked ? '0' : '1';
+      clickToPlayEl.style.opacity = inputManager.isLocked && !pauseMenu.isVisible ? '0' : '1';
     }
 
-    // 1. Sample player input
+    // Toggle Scoreboard when holding Tab
+    scoreboard.setVisible(inputManager.isTabDown);
+
+    // 1. Sample input
     const input = inputManager.sampleInput(clientTick);
 
-    // 2. Weapon Firing Logic
-    if (input.isShooting && inputManager.isLocked && networkController.isLocalAlive) {
-      // Gather remote players meshes for local client raycast feedback
-      const remoteMeshes: THREE.Mesh[] = [];
-      for (const [_, remote] of networkController.remotePlayers.entries()) {
-        if (remote.isAlive) {
-          remoteMeshes.push(remote.headMesh, remote.torsoMesh, remote.legsMesh);
-        }
-      }
-
+    // 2. Firing Logic
+    if (input.isShooting && inputManager.isLocked && networkController.isLocalAlive && !pauseMenu.isVisible) {
       const fired = weaponManager.tryFire(now, charController.isSprinting, dummies, warehouse.mapGroup);
       if (fired) {
-        // Send authoritative fire intent to Colyseus server with camera aim direction
         const aimDir = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
         networkController.sendFireIntent(weaponManager.activeWeapon.id, camera.position, aimDir);
       }
     }
 
-    // 3. Apply Camera Recoil
+    // 3. Recoil Kick
     const effectivePitch = input.pitch + weaponManager.recoilSystem.currentPitchRecoil;
     const effectiveYaw = input.yaw + weaponManager.recoilSystem.currentYawRecoil;
 
-    // 4. Update Character Controller (Client Prediction)
+    // 4. Character Controller
     input.pitch = effectivePitch;
     input.yaw = effectiveYaw;
     charController.update(input, dt);
 
-    // 5. Send input stream to authoritative server
+    // 5. Netcode input streaming
     networkController.sendInput(input);
 
-    // 6. Step Local Rapier Physics World
+    // 6. Step Local Rapier
     rapierWorld.step();
 
-    // 7. Update Weapon Manager
+    // 7. Weapons Update
     weaponManager.update(
       dt,
       input.isAiming,
@@ -196,7 +229,7 @@ async function bootstrap() {
       dummies
     );
 
-    // 8. Update Viewmodel
+    // 8. Viewmodel Update
     viewmodel.setWeapon(weaponManager.activeWeapon.id);
     viewmodel.update(
       dt,
@@ -210,16 +243,16 @@ async function bootstrap() {
       weaponManager.recoilSystem.viewmodelKickPitch
     );
 
-    // 9. Update Network Controller (Entity Interpolation & Server Reconciliation)
+    // 9. Entity Interpolation & Server Reconciliation
     networkController.update(Date.now(), camera.position);
 
-    // 10. Update VFX
+    // 10. VFX
     vfx.update(dt);
 
-    // 11. Render 3D Scene
+    // 11. Render
     renderer.render(scene, camera);
 
-    // 12. Update Weapon HUD & Debug Overlay
+    // 12. Weapon HUD & Debug Telemetry
     weaponHUD.update(dt, weaponManager);
     debugOverlay.update(charController);
   }

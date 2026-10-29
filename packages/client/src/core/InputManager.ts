@@ -8,6 +8,7 @@ export class InputManager {
   private keys: Record<string, boolean> = {};
   public isLmbDown: boolean = false;
   public isRmbDown: boolean = false;
+  public isTabDown: boolean = false;
 
   // Look angles (radians)
   public yaw: number = 0;
@@ -83,7 +84,10 @@ export class InputManager {
       const code = e.code;
       this.keys[code] = true;
 
-      if (code === 'F3') {
+      if (code === 'Tab') {
+        e.preventDefault();
+        this.isTabDown = true;
+      } else if (code === 'F3') {
         e.preventDefault();
         if (this.onDebugToggle) this.onDebugToggle();
       } else if (code === 'KeyR') {
@@ -101,6 +105,10 @@ export class InputManager {
 
     window.addEventListener('keyup', (e) => {
       this.keys[e.code] = false;
+      if (e.code === 'Tab') {
+        e.preventDefault();
+        this.isTabDown = false;
+      }
     });
   }
 

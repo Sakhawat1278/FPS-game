@@ -202,3 +202,4 @@ export class RemotePlayer {
     this.scene.remove(this.group);
   }
 }
+

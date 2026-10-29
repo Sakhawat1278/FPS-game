@@ -22,6 +22,13 @@ import { LagCompensation } from '../systems/LagCompensation';
 export interface JoinOptions {
   nickname?: string;
   roomCode?: string;
+  deviceId?: string;
+}
+
+interface DamageInstance {
+  attackerId: string;
+  amount: number;
+  timestamp: number;
 }
 
 interface ServerPlayerData {
@@ -35,6 +42,9 @@ interface ServerPlayerData {
   spawnProtectionEndTime: number;
   respawnTimer: number;
   isGrounded: boolean;
+  currentStreak: number;
+  deviceId?: string;
+  damageHistory: DamageInstance[];
 }
 
 export class WarehouseRoom extends Room<WarehouseRoomState> {
@@ -228,20 +238,61 @@ export class WarehouseRoom extends Room<WarehouseRoomState> {
         // Apply Damage
         victim.health = Math.max(0, victim.health - damage);
         victimData.lastDamageTime = now;
+        victimData.damageHistory.push({ attackerId: client.sessionId, amount: damage, timestamp: now });
 
         shooter.damage += damage;
+        if (closestHit.isHeadshot) shooter.headshots++;
 
         let isKill = false;
+        let streakText: string | undefined;
+
         if (victim.health <= 0) {
           isKill = true;
           victim.isAlive = false;
           victim.deaths++;
           shooter.kills++;
-          victimData.respawnTimer = MATCH_RULES.respawnDelaySeconds; // 3 seconds death cam
+          shooterData.currentStreak++;
+          victimData.currentStreak = 0;
+          victimData.respawnTimer = MATCH_RULES.respawnDelaySeconds;
+
+          // Streak announcements (Section 3.4)
+          if (shooterData.currentStreak === 3) streakText = 'KILLING SPREE (3 STREAK)!';
+          else if (shooterData.currentStreak === 5) streakText = 'RAMPAGE (5 STREAK)!';
+          else if (shooterData.currentStreak >= 7 && shooterData.currentStreak % 2 === 1) streakText = `UNSTOPPABLE (${shooterData.currentStreak} STREAK)!`;
+
+          // Assist check: >= 30 damage within last 5000 ms before kill (Section 3.4)
+          const fiveSecAgo = now - 5000;
+          const assistMap = new Map<string, number>();
+          for (const dh of victimData.damageHistory) {
+            if (dh.timestamp >= fiveSecAgo && dh.attackerId !== client.sessionId) {
+              assistMap.set(dh.attackerId, (assistMap.get(dh.attackerId) || 0) + dh.amount);
+            }
+          }
+          for (const [attackerId, totalDmg] of assistMap.entries()) {
+            if (totalDmg >= 30) {
+              const assister = this.state.players.get(attackerId);
+              if (assister) {
+                assister.assists++;
+                console.log(`[WarehouseRoom] Assist awarded to: ${assister.name} (${totalDmg} dmg)`);
+              }
+            }
+          }
+          victimData.damageHistory = [];
 
           // Team Score
           if (shooter.team === 'alpha') this.state.alphaKills++;
           else this.state.bravoKills++;
+
+          // Broadcast Kill Feed event
+          this.broadcast('kill_feed_event', {
+            killerName: shooter.name,
+            killerTeam: shooter.team,
+            victimName: victim.name,
+            victimTeam: victim.team,
+            weaponId: weapon.id,
+            isHeadshot: closestHit.isHeadshot,
+            streak: streakText
+          });
 
           // Check Win Condition
           if (this.state.alphaKills >= MATCH_RULES.scoreLimit) {
@@ -283,6 +334,30 @@ export class WarehouseRoom extends Room<WarehouseRoomState> {
         this.state.matchState = 'in_progress';
         this.state.timeRemaining = MATCH_RULES.timeLimitSeconds;
         console.log(`[WarehouseRoom ${this.state.roomCode}] Match started by host!`);
+      }
+    });
+
+    this.onMessage('request_rematch', (client) => {
+      if (client.sessionId === this.state.hostSessionId && this.state.matchState === 'match_end') {
+        this.state.matchState = 'countdown';
+        this.state.countdownRemaining = MATCH_RULES.countdownSeconds;
+        this.state.alphaKills = 0;
+        this.state.bravoKills = 0;
+        this.state.winningTeam = '';
+        this.state.timeRemaining = MATCH_RULES.timeLimitSeconds;
+
+        for (const player of this.state.players.values()) {
+          player.kills = 0;
+          player.deaths = 0;
+          player.assists = 0;
+          player.headshots = 0;
+          player.damage = 0;
+          player.health = HEALTH_RULES.maxHealth;
+          player.isAlive = true;
+          player.isSpawnProtected = true;
+        }
+
+        console.log(`[WarehouseRoom ${this.state.roomCode}] Rematch initiated by host!`);
       }
     });
   }
@@ -346,7 +421,10 @@ export class WarehouseRoom extends Room<WarehouseRoomState> {
       lastFireTime: 0,
       spawnProtectionEndTime: now + MATCH_RULES.spawnProtectionSeconds * 1000,
       respawnTimer: 0,
-      isGrounded: true
+      isGrounded: true,
+      currentStreak: 0,
+      deviceId: options.deviceId,
+      damageHistory: []
     });
 
     this.state.players.set(client.sessionId, player);

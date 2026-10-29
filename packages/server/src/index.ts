@@ -5,6 +5,7 @@ import { Server } from 'colyseus';
 import { WebSocketTransport } from '@colyseus/ws-transport';
 import { monitor } from '@colyseus/monitor';
 import { WarehouseRoom } from './rooms/WarehouseRoom';
+import { leaderboardDB } from './db/leaderboard';
 
 const port = Number(process.env.PORT || 2567);
 const app = express();
@@ -20,6 +21,34 @@ app.get('/health', (req, res) => {
     uptime: process.uptime(),
     timestamp: Date.now()
   });
+});
+
+// Global leaderboard endpoint
+app.get('/api/leaderboard', (req, res) => {
+  res.status(200).json({
+    topKills: leaderboardDB.getTopKills(50),
+    topKD: leaderboardDB.getTopKD(50)
+  });
+});
+
+app.post('/api/leaderboard/record', (req, res) => {
+  try {
+    const { deviceId, nickname, isWin, kills, deaths, assists, headshots, damage } = req.body;
+    if (!deviceId) return res.status(400).json({ error: 'Missing deviceId' });
+    leaderboardDB.recordPlayerStats({
+      deviceId,
+      nickname: nickname || 'Soldier',
+      isWin: Boolean(isWin),
+      kills: Number(kills || 0),
+      deaths: Number(deaths || 0),
+      assists: Number(assists || 0),
+      headshots: Number(headshots || 0),
+      damage: Number(damage || 0)
+    });
+    res.status(200).json({ status: 'ok' });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // Colyseus dashboard monitor
