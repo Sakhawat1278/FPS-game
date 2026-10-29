@@ -26,8 +26,11 @@ export class Viewmodel {
   private defaultHipPosition = new THREE.Vector3(0.22, -0.20, -0.42);
   private defaultAdsPosition = new THREE.Vector3(0.0, -0.145, -0.32);
   private m4HipPosition = new THREE.Vector3(0.02, -0.045, -0.15);
-  private m4AdsPosition = new THREE.Vector3(-0.0493, 0.0932, -0.12);
+  private m4AdsPosition = new THREE.Vector3(-0.038, 0.035, -0.05);
+  private m4HipRotation = new THREE.Vector3(0.0, 0.0, 0.0);
+  private m4AdsRotation = new THREE.Vector3(0.055, -0.032, 0.0);
   private currentBasePos = new THREE.Vector3().copy(this.m4HipPosition);
+  private currentBaseRot = new THREE.Vector3();
 
   constructor(camera: THREE.Camera) {
     this.camera = camera;
@@ -408,23 +411,29 @@ export class Viewmodel {
     const adsPos = isM4 ? this.m4AdsPosition : this.defaultAdsPosition;
     const targetPos = isAiming ? adsPos : hipPos;
 
+    const targetRot = isM4 && isAiming ? this.m4AdsRotation : this.m4HipRotation;
+
     this.currentBasePos.lerp(targetPos, Math.min(1.0, 14.0 * dt));
+    this.currentBaseRot.lerp(targetRot, Math.min(1.0, 14.0 * dt));
 
     const sprintLowerY = isSprinting ? -0.09 : 0;
     const sprintRotateZ = isSprinting ? -0.35 : 0;
+
+    // Dampen sway in ADS for rock-solid iron sight aiming
+    const swayDamp = isAiming ? 0.35 : 1.0;
 
     // Hide Operator mesh during full ADS scope overlay
     const isOperatorScope = this.activeId === 'operator' && isAiming;
     this.group.visible = !isOperatorScope;
 
     // Apply combined position (base + sway + bob + recoil kick + sprint)
-    this.group.position.x = this.currentBasePos.x + this.currentSwayX + bobX;
-    this.group.position.y = this.currentBasePos.y + this.currentSwayY - bobY + sprintLowerY;
+    this.group.position.x = this.currentBasePos.x + this.currentSwayX * swayDamp + bobX;
+    this.group.position.y = this.currentBasePos.y + this.currentSwayY * swayDamp - bobY + sprintLowerY;
     this.group.position.z = this.currentBasePos.z + kickZ;
 
-    // Apply rotation
-    this.group.rotation.y = this.currentSwayX * 1.8;
-    this.group.rotation.x = -this.currentSwayY * 1.8 - kickPitch;
-    this.group.rotation.z = sprintRotateZ;
+    // Apply rotation (base ADS alignment + mouse sway + recoil pitch + sprint)
+    this.group.rotation.y = this.currentBaseRot.y + this.currentSwayX * 1.8 * swayDamp;
+    this.group.rotation.x = this.currentBaseRot.x - this.currentSwayY * 1.8 * swayDamp - kickPitch;
+    this.group.rotation.z = this.currentBaseRot.z + sprintRotateZ;
   }
 }
