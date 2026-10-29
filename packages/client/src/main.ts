@@ -6,7 +6,8 @@ import { RealisticWarehouse } from './world/RealisticWarehouse';
 import { CharacterController } from './core/CharacterController';
 import { Viewmodel } from './rendering/Viewmodel';
 import { DebugOverlay } from './ui/DebugOverlay';
-import { ProceduralAudio } from './audio/ProceduralAudio';
+import { AudioEngine } from './audio/AudioEngine';
+import { MovementAudio } from './audio/MovementAudio';
 import { VFXManager } from './rendering/VFXManager';
 import { WeaponManager } from './weapons/WeaponManager';
 import { TargetDummy } from './entities/TargetDummy';
@@ -69,8 +70,9 @@ async function bootstrap() {
   // Postprocessing Chain (ACES Filmic, Unreal Bloom)
   const postprocessing = new PostprocessingManager(renderer, scene, camera);
 
-  // Audio Engine & VFX
-  const audio = new ProceduralAudio();
+  // Audio Engine & 3D Movement Soundscape
+  const audio = new AudioEngine();
+  const movementAudio = new MovementAudio(audio);
   const vfx = new VFXManager(scene);
 
   // Target Dummies
@@ -120,6 +122,7 @@ async function bootstrap() {
   // Network Controller
   const networkController = new NetworkController(scene, charController, audio);
   let localPlayerName = 'Soldier';
+  let lastCountdownSec = -1;
 
   try {
     if (connStatusEl) connStatusEl.innerText = 'Connecting to room...';
@@ -137,6 +140,19 @@ async function bootstrap() {
     room.onStateChange((state) => {
       const me = state.players.get(room.sessionId);
       if (me) localPlayerName = me.name;
+
+      // Audio countdown beeps
+      if (state.matchState === 'countdown') {
+        const sec = Math.ceil(state.countdownRemaining);
+        if (sec !== lastCountdownSec) {
+          lastCountdownSec = sec;
+          if (sec <= 3 && sec > 0) audio.playCountdownBeep(false);
+          else if (sec === 0) {
+            audio.playCountdownBeep(true);
+            audio.playMatchStartStinger();
+          }
+        }
+      }
 
       matchHeader.update(state);
       scoreboard.update(state, room.sessionId);
@@ -239,7 +255,11 @@ async function bootstrap() {
     networkController.update(Date.now(), camera.position);
     vfx.update(dt);
 
-    // Render through Postprocessing Composer
+    // 10. Update 3D Audio Listener & Footsteps / Jump Sounds
+    audio.updateListener(camera);
+    movementAudio.update(dt, charController);
+
+    // 11. Render through Postprocessing Composer
     postprocessing.render(dt * 1000);
 
     weaponHUD.update(dt, weaponManager);

@@ -213,3 +213,4 @@ export class TextureGenerator {
     return new THREE.CanvasTexture(canvas);
   }
 }
+

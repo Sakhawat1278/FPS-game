@@ -104,3 +104,4 @@ export class PostprocessingManager {
     this.composer.render();
   }
 }
+

@@ -1,13 +1,13 @@
 import * as THREE from 'three';
 import { WEAPONS, WeaponData, WeaponId } from '@warehouse-strike/shared';
-import { ProceduralAudio } from '../audio/ProceduralAudio';
+import { AudioEngine } from '../audio/AudioEngine';
 import { VFXManager } from '../rendering/VFXManager';
 import { TargetDummy, DummyHitResult } from '../entities/TargetDummy';
 import { RecoilSystem } from './RecoilSystem';
 
 export class WeaponManager {
   private camera: THREE.PerspectiveCamera;
-  private audio: ProceduralAudio;
+  private audio: AudioEngine;
   private vfx: VFXManager;
   public recoilSystem: RecoilSystem;
 
@@ -39,7 +39,7 @@ export class WeaponManager {
   // Hit callbacks
   public onHit?: (result: DummyHitResult) => void;
 
-  constructor(camera: THREE.PerspectiveCamera, audio: ProceduralAudio, vfx: VFXManager) {
+  constructor(camera: THREE.PerspectiveCamera, audio: AudioEngine, vfx: VFXManager) {
     this.camera = camera;
     this.audio = audio;
     this.vfx = vfx;

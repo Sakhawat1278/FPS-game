@@ -10,14 +10,14 @@ import {
 } from '@warehouse-strike/shared';
 import { CharacterController } from '../core/CharacterController';
 import { RemotePlayer } from '../entities/RemotePlayer';
-import { ProceduralAudio } from '../audio/ProceduralAudio';
+import { AudioEngine } from '../audio/AudioEngine';
 
 export class NetworkController {
   public client: Client;
   public room: Room<WarehouseRoomState> | null = null;
   private scene: THREE.Scene;
   private charController: CharacterController;
-  private audio: ProceduralAudio;
+  private audio: AudioEngine;
 
   // Remote players map
   public remotePlayers: Map<string, RemotePlayer> = new Map();
@@ -33,7 +33,7 @@ export class NetworkController {
   // Callbacks
   public onHitEvent?: (event: HitEventMessage) => void;
 
-  constructor(scene: THREE.Scene, charController: CharacterController, audio: ProceduralAudio) {
+  constructor(scene: THREE.Scene, charController: CharacterController, audio: AudioEngine) {
     this.scene = scene;
     this.charController = charController;
     this.audio = audio;
