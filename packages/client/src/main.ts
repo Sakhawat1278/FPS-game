@@ -272,6 +272,11 @@ async function bootstrap() {
 
     // Firing Logic (Zero-allocation aim direction)
     if (input.isShooting && inputManager.isLocked && networkController.isLocalAlive && !pauseMenu.isVisible) {
+      // Shooting while running immediately breaks sprint into auto-walk
+      if (charController.isSprinting) {
+        charController.isSprinting = false;
+        input.isSprinting = false;
+      }
       const fired = weaponManager.tryFire(now, charController.isSprinting, dummies, warehouse.mapGroup);
       if (fired) {
         _aimDir.set(0, 0, -1).applyQuaternion(camera.quaternion);

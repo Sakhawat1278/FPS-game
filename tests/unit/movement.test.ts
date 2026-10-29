@@ -93,6 +93,41 @@ describe('Player Physics and Kinematics Rules', () => {
     expect(Math.hypot(crouchRes.desiredVx, crouchRes.desiredVz)).toBeCloseTo(PLAYER_PHYSICS_RULES.crouchSpeed, 3);
   });
 
+  it('automatically walks instead of sprinting when shooting while running', () => {
+    const shootSprintInput: PlayerInput = {
+      seq: 3,
+      tick: 3,
+      timestamp: Date.now(),
+      moveForward: 1,
+      moveRight: 0,
+      yaw: 0,
+      pitch: 0,
+      isSprinting: true,
+      isCrouching: false,
+      isJumping: false,
+      isShooting: true,
+      isAiming: false
+    };
+
+    const state = {
+      x: 0,
+      y: 0,
+      z: 0,
+      vx: 0,
+      vy: 0,
+      vz: 0,
+      yaw: 0,
+      pitch: 0,
+      isGrounded: true,
+      isCrouching: false,
+      isSprinting: true
+    };
+
+    const res = computeDesiredMovement(shootSprintInput, state, 1 / 60);
+    expect(res.canSprint).toBe(false);
+    expect(Math.hypot(res.desiredVx, res.desiredVz)).toBeCloseTo(PLAYER_PHYSICS_RULES.walkSpeed, 3);
+  });
+
   it('accelerates player velocity towards desired velocity based on ground acceleration', () => {
     const dt = 1 / 60;
     const { vx, vz } = applyAcceleration(0, 0, 0, -4.2, true, dt);

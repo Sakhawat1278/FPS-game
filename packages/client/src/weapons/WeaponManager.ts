@@ -87,9 +87,7 @@ export class WeaponManager {
   ): boolean {
     if (this.isReloading || this.isCyclingBolt) return false;
 
-    // Cannot fire while sprinting (Section 3.2 & 3.3)
-    if (isSprinting) return false;
-
+    // Firing while running immediately drops sprint to walk (auto-walk and fire)
     const weapon = this.activeWeapon;
     const ammo = this.activeAmmo;
 

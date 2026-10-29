@@ -20,8 +20,8 @@ export function computeDesiredMovement(
   currentState: CharacterState,
   dt: number
 ): { desiredVx: number; desiredVz: number; targetSpeed: number; canSprint: boolean } {
-  // Can only sprint if moving forward (moveForward > 0.1) and not crouching
-  const canSprint = input.isSprinting && input.moveForward > 0.1 && !input.isCrouching;
+  // Can only sprint if moving forward (moveForward > 0.1), not crouching, and not firing
+  const canSprint = input.isSprinting && input.moveForward > 0.1 && !input.isCrouching && !input.isShooting;
 
   // Determine target horizontal speed
   let targetSpeed = PLAYER_PHYSICS_RULES.walkSpeed;
