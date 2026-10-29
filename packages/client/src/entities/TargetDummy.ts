@@ -157,3 +157,4 @@ export class TargetDummy {
     (this.healthBarMesh.material as THREE.MeshBasicMaterial).color.setHex(0x10b981);
   }
 }
+

@@ -1,7 +1,6 @@
 import * as THREE from 'three';
 import RAPIER from '@dimforge/rapier3d-compat';
-import { Client, Room } from 'colyseus.js';
-import { WarehouseRoomState, WAREHOUSE_MAP } from '@warehouse-strike/shared';
+import { WAREHOUSE_MAP } from '@warehouse-strike/shared';
 import { InputManager } from './core/InputManager';
 import { WarehouseWorld } from './world/WarehouseWorld';
 import { CharacterController } from './core/CharacterController';
@@ -12,9 +11,11 @@ import { VFXManager } from './rendering/VFXManager';
 import { WeaponManager } from './weapons/WeaponManager';
 import { TargetDummy } from './entities/TargetDummy';
 import { WeaponHUD } from './ui/WeaponHUD';
+import { NetworkController } from './net/NetworkController';
+import { RoomLobby } from './ui/RoomLobby';
 
 async function bootstrap() {
-  console.log('[Warehouse Strike] Initializing Phase 3 Weapons & Combat...');
+  console.log('[Warehouse Strike] Initializing Phase 4 Authoritative Networking & Multiplayer...');
   await RAPIER.init();
 
   const canvas = document.getElementById('game-canvas') as HTMLCanvasElement;
@@ -22,7 +23,7 @@ async function bootstrap() {
   const connStatusEl = document.getElementById('connection-status');
   const roomInfoEl = document.getElementById('room-info');
 
-  // Setup WebGL2 Renderer
+  // WebGL2 Renderer
   const renderer = new THREE.WebGLRenderer({
     canvas,
     antialias: true,
@@ -44,42 +45,42 @@ async function bootstrap() {
   // Physics World (Gravity: -24 m/s^2)
   const rapierWorld = new RAPIER.World({ x: 0, y: -24.0, z: 0 });
 
-  // Build Warehouse Map & Colliders
+  // Warehouse Map & Colliders
   const warehouse = new WarehouseWorld(scene, rapierWorld);
   await warehouse.build();
 
-  // Audio Engine
+  // Audio Engine & VFX
   const audio = new ProceduralAudio();
-
-  // Visual Effects Manager (Tracers, Muzzle flash, Impacts)
   const vfx = new VFXManager(scene);
 
-  // Target Dummies placed at strategic tactical combat ranges
+  // Target Dummies for solo target practice
   const dummies: TargetDummy[] = [
-    new TargetDummy(scene, 'dummy_near', -18, 0, -10, Math.PI / 4), // Close range near spawn (10m)
-    new TargetDummy(scene, 'dummy_center_mid', 0, 0, 0, Math.PI), // Mid-range center aisle (28m)
-    new TargetDummy(scene, 'dummy_center_far', 16, 0, 0, Math.PI), // Far center aisle (44m)
-    new TargetDummy(scene, 'dummy_catwalk_sniper', 8, 3.5, 19.5, Math.PI), // Elevated sniper dummy on catwalk!
-    new TargetDummy(scene, 'dummy_office', 0, 0, -18, Math.PI / 2) // Close-quarters office dummy
+    new TargetDummy(scene, 'dummy_near', -18, 0, -10, Math.PI / 4),
+    new TargetDummy(scene, 'dummy_center_mid', 0, 0, 0, Math.PI),
+    new TargetDummy(scene, 'dummy_center_far', 16, 0, 0, Math.PI),
+    new TargetDummy(scene, 'dummy_catwalk_sniper', 8, 3.5, 19.5, Math.PI),
+    new TargetDummy(scene, 'dummy_office', 0, 0, -18, Math.PI / 2)
   ];
 
-  // Weapon System
-  const weaponManager = new WeaponManager(camera, audio, vfx);
-
-  // Weapon HUD & Reticle
-  const weaponHUD = new WeaponHUD();
-  weaponManager.onHit = (result) => weaponHUD.showHit(result);
-
-  // Character Controller (West Alpha spawn)
+  // Character Controller
   const startSpawn = WAREHOUSE_MAP.spawns[0];
   const charController = new CharacterController(rapierWorld, camera, startSpawn.x, startSpawn.y, startSpawn.z);
 
-  // Viewmodel (Procedural M416 / Operator / Desert Eagle)
+  // Viewmodel
   const viewmodel = new Viewmodel(camera);
 
   // Input Manager
   const inputManager = new InputManager(canvas);
   inputManager.setLook(startSpawn.yaw, 0);
+
+  // Debug Overlay (F3)
+  const debugOverlay = new DebugOverlay(renderer);
+  inputManager.onDebugToggle = () => debugOverlay.toggle();
+
+  // Weapon System & HUD
+  const weaponManager = new WeaponManager(camera, audio, vfx);
+  const weaponHUD = new WeaponHUD();
+  weaponManager.onHit = (result) => weaponHUD.showHit(result);
 
   // Input Callbacks
   inputManager.onReload = () => weaponManager.startReload();
@@ -88,9 +89,41 @@ async function bootstrap() {
   inputManager.onSwapPrimary = () => weaponManager.togglePrimaryWeapon();
   inputManager.onToggleZoom = () => weaponManager.toggleOperatorZoom();
 
-  // Debug Overlay (F3)
-  const debugOverlay = new DebugOverlay(renderer);
-  inputManager.onDebugToggle = () => debugOverlay.toggle();
+  // Network Controller & Lobby
+  const networkController = new NetworkController(scene, charController, audio);
+  const roomLobby = new RoomLobby();
+
+  try {
+    if (connStatusEl) connStatusEl.innerText = 'Connecting to room...';
+    const room = await networkController.connect();
+    roomLobby.bindRoom(room);
+
+    if (connStatusEl) connStatusEl.innerText = `Connected (${room.sessionId})`;
+    if (roomInfoEl) roomInfoEl.innerText = `Room: ${room.state.roomCode} | 60Hz Netcode Active`;
+
+    room.onStateChange((state) => {
+      if (roomInfoEl) {
+        roomInfoEl.innerText = `Room: ${state.roomCode} | State: ${state.matchState} | Score: [Alpha ${state.alphaKills} - Bravo ${state.bravoKills}]`;
+      }
+    });
+
+    // Listen to authoritative hit events from server
+    networkController.onHitEvent = (event) => {
+      if (event.shooterId === room.sessionId) {
+        weaponHUD.showHit({
+          hit: true,
+          isHeadshot: event.isHeadshot,
+          damage: event.damage,
+          remainingHealth: event.victimHealth,
+          isKilled: event.isKill,
+          point: new THREE.Vector3()
+        });
+      }
+    };
+  } catch (err) {
+    console.error('[Network] Connection failed:', err);
+    if (connStatusEl) connStatusEl.innerText = 'Offline Mode';
+  }
 
   // Resize handling
   window.addEventListener('resize', () => {
@@ -99,33 +132,7 @@ async function bootstrap() {
     renderer.setSize(window.innerWidth, window.innerHeight);
   });
 
-  // Setup Colyseus Client
-  const serverUrl = window.location.hostname === 'localhost'
-    ? 'ws://localhost:2567'
-    : `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}`;
-
-  const colyseusClient = new Client(serverUrl);
-
-  try {
-    if (connStatusEl) connStatusEl.innerText = 'Connecting to server...';
-    const room: Room<WarehouseRoomState> = await colyseusClient.joinOrCreate<WarehouseRoomState>('warehouse_room', {
-      nickname: 'Gunner_1'
-    });
-
-    if (connStatusEl) connStatusEl.innerText = `Connected (${room.sessionId})`;
-    if (roomInfoEl) roomInfoEl.innerText = `Room: ${room.state.roomCode} | Phase 3 Weapons Verified`;
-
-    room.onStateChange((state) => {
-      if (roomInfoEl) {
-        roomInfoEl.innerText = `Room: ${state.roomCode} | State: ${state.matchState} | Players: ${state.players.size}`;
-      }
-    });
-  } catch (err) {
-    console.warn('[Colyseus] Running offline:', err);
-    if (connStatusEl) connStatusEl.innerText = 'Offline Mode (Standalone Combat Sandbox)';
-  }
-
-  // Animation & Physics Loop
+  // Render & Simulation Loop
   let lastTime = performance.now();
   let clientTick = 0;
 
@@ -147,24 +154,39 @@ async function bootstrap() {
     const input = inputManager.sampleInput(clientTick);
 
     // 2. Weapon Firing Logic
-    if (input.isShooting && inputManager.isLocked) {
-      weaponManager.tryFire(now, charController.isSprinting, dummies, warehouse.mapGroup);
+    if (input.isShooting && inputManager.isLocked && networkController.isLocalAlive) {
+      // Gather remote players meshes for local client raycast feedback
+      const remoteMeshes: THREE.Mesh[] = [];
+      for (const [_, remote] of networkController.remotePlayers.entries()) {
+        if (remote.isAlive) {
+          remoteMeshes.push(remote.headMesh, remote.torsoMesh, remote.legsMesh);
+        }
+      }
+
+      const fired = weaponManager.tryFire(now, charController.isSprinting, dummies, warehouse.mapGroup);
+      if (fired) {
+        // Send authoritative fire intent to Colyseus server with camera aim direction
+        const aimDir = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
+        networkController.sendFireIntent(weaponManager.activeWeapon.id, camera.position, aimDir);
+      }
     }
 
-    // 3. Apply Camera Recoil (adds upward pitch & horizontal kick)
+    // 3. Apply Camera Recoil
     const effectivePitch = input.pitch + weaponManager.recoilSystem.currentPitchRecoil;
     const effectiveYaw = input.yaw + weaponManager.recoilSystem.currentYawRecoil;
 
-    // 4. Update Character Controller
-    // Pass effective look angles so camera and movement align
+    // 4. Update Character Controller (Client Prediction)
     input.pitch = effectivePitch;
     input.yaw = effectiveYaw;
     charController.update(input, dt);
 
-    // 5. Step Physics World
+    // 5. Send input stream to authoritative server
+    networkController.sendInput(input);
+
+    // 6. Step Local Rapier Physics World
     rapierWorld.step();
 
-    // 6. Update Weapon Manager (ADS zoom, spread, reload timer, dummy updates)
+    // 7. Update Weapon Manager
     weaponManager.update(
       dt,
       input.isAiming,
@@ -174,7 +196,7 @@ async function bootstrap() {
       dummies
     );
 
-    // 7. Update Viewmodel (3D gun mesh, sway, bob, recoil kick)
+    // 8. Update Viewmodel
     viewmodel.setWeapon(weaponManager.activeWeapon.id);
     viewmodel.update(
       dt,
@@ -188,16 +210,17 @@ async function bootstrap() {
       weaponManager.recoilSystem.viewmodelKickPitch
     );
 
-    // 8. Update Visual Effects (Tracers travel, impact sparks)
+    // 9. Update Network Controller (Entity Interpolation & Server Reconciliation)
+    networkController.update(Date.now(), camera.position);
+
+    // 10. Update VFX
     vfx.update(dt);
 
-    // 9. Render 3D Scene
+    // 11. Render 3D Scene
     renderer.render(scene, camera);
 
-    // 10. Update Weapon HUD (Ammo, dynamic crosshair spread, scope, hitmarkers)
+    // 12. Update Weapon HUD & Debug Overlay
     weaponHUD.update(dt, weaponManager);
-
-    // 11. Update Debug Overlay
     debugOverlay.update(charController);
   }
 
@@ -205,5 +228,5 @@ async function bootstrap() {
 }
 
 bootstrap().catch((err) => {
-  console.error('[Warehouse Strike] Fatal bootstrap error:', err);
+  console.error('[Warehouse Strike] Fatal error:', err);
 });

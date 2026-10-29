@@ -5,8 +5,8 @@
 - [x] **Phase 1 — Foundation**: Monorepo, tooling, git, Vite client, Colyseus server, shared package, CI scripts, README skeleton. *(COMPLETED)*
 - [x] **Phase 2 — Single-player core**: Renderer, pointer-lock controls, Rapier character controller (walk/sprint/crouch/jump), greybox warehouse with collision, debug overlay. *(COMPLETED)*
 - [x] **Phase 3 — Weapons**: Data-driven weapon system, M416 / Operator / Desert Eagle with animations, recoil, spread, ADS, scope, reload, ammo, hit detection vs dummies, HUD, impacts, tracers. *(COMPLETED)*
-- [ ] **Phase 4 — Networking**: Rooms with codes & invite links, lobby, authoritative server loop, prediction & reconciliation, interpolation, server-side hit validation with lag compensation, health, death, respawn, spawn protection. *(NEXT)*
-- [ ] **Phase 5 — Match logic & UI**: Team Deathmatch rules, team assignment, scoreboard, kill feed, timer, end-of-match leaderboard, rematch, host controls, reconnection, global leaderboard.
+- [x] **Phase 4 — Networking**: Rooms with codes & invite links, lobby, authoritative server loop, prediction & reconciliation, interpolation, server-side hit validation with lag compensation, health, death, respawn, spawn protection. *(COMPLETED)*
+- [ ] **Phase 5 — Match logic & UI**: Team Deathmatch rules, team assignment, scoreboard, kill feed, timer, end-of-match leaderboard, rematch, host controls, reconnection, global leaderboard. *(NEXT)*
 - [ ] **Phase 6 — Final art & map**: Replace greybox with realistic warehouse (PBR, lighting, props, LODs), realistic character models & animations, weapon models, VFX, post-processing & quality presets.
 - [ ] **Phase 7 — Audio**: Sound effects, positional audio, reverb, occlusion filter, mixer settings.
 - [ ] **Phase 8 — Settings & polish**: Settings panel, key rebinding, crosshair editor, loading screens, error states, cold-start UI, accessibility options.

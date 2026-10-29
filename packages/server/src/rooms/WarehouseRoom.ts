@@ -1,83 +1,288 @@
 import { Room, Client } from 'colyseus';
+import RAPIER from '@dimforge/rapier3d-compat';
 import {
   WarehouseRoomState,
   PlayerSchema,
   MATCH_RULES,
-  NETWORK_RULES
+  NETWORK_RULES,
+  HEALTH_RULES,
+  PLAYER_PHYSICS_RULES,
+  WEAPONS,
+  WAREHOUSE_MAP,
+  PlayerInput,
+  FireIntentMessage,
+  HitEventMessage,
+  computeDesiredMovement,
+  applyAcceleration,
+  SpawnPoint
 } from '@warehouse-strike/shared';
 import { generateRoomCode } from '../utils/roomCode';
+import { LagCompensation } from '../systems/LagCompensation';
 
 export interface JoinOptions {
   nickname?: string;
   roomCode?: string;
 }
 
+interface ServerPlayerData {
+  characterController: RAPIER.KinematicCharacterController;
+  rigidBody: RAPIER.RigidBody;
+  standingColliderDesc: RAPIER.ColliderDesc;
+  crouchingColliderDesc: RAPIER.ColliderDesc;
+  activeCollider: RAPIER.Collider;
+  lastDamageTime: number;
+  lastFireTime: number;
+  spawnProtectionEndTime: number;
+  respawnTimer: number;
+  isGrounded: boolean;
+}
+
 export class WarehouseRoom extends Room<WarehouseRoomState> {
   maxClients = MATCH_RULES.maxPlayers;
-  private tickInterval: any = null;
+  private rapierWorld!: RAPIER.World;
+  private lagCompensation: LagCompensation = new LagCompensation();
+  private serverData: Map<string, ServerPlayerData> = new Map();
 
-  onCreate(options: JoinOptions) {
+  async onCreate(options: JoinOptions) {
     this.setState(new WarehouseRoomState());
 
     // Generate room code
     this.state.roomCode = options.roomCode || generateRoomCode(6);
     this.setMetadata({ roomCode: this.state.roomCode });
 
-    // Auto dispose empty rooms after configured duration
     this.autoDispose = true;
 
-    // Simulation tick at 60 Hz
+    // Initialize Rapier World on Server
+    await RAPIER.init();
+    this.rapierWorld = new RAPIER.World({ x: 0, y: -PLAYER_PHYSICS_RULES.gravity, z: 0 });
+
+    // Build static map collision hulls on server
+    const staticBodyDesc = RAPIER.RigidBodyDesc.fixed();
+    const staticBody = this.rapierWorld.createRigidBody(staticBodyDesc);
+    for (const c of WAREHOUSE_MAP.colliders) {
+      const desc = RAPIER.ColliderDesc.cuboid(c.hx, c.hy, c.hz).setTranslation(c.x, c.y, c.z);
+      if (c.rotationY) {
+        desc.setRotation({
+          x: 0,
+          y: Math.sin(c.rotationY / 2),
+          z: 0,
+          w: Math.cos(c.rotationY / 2)
+        });
+      }
+      this.rapierWorld.createCollider(desc, staticBody);
+    }
+
+    // Fixed 60 Hz simulation loop
     this.setSimulationInterval((deltaTime) => this.update(deltaTime), 1000 / NETWORK_RULES.serverTickRate);
 
-    // State patch rate at 30 Hz
+    // 30 Hz snapshot rate
     this.setPatchRate(1000 / NETWORK_RULES.snapshotRate);
 
-    console.log(`[WarehouseRoom] Created room code: ${this.state.roomCode} (ID: ${this.roomId})`);
+    console.log(`[WarehouseRoom] Created authoritative 60Hz room: ${this.state.roomCode}`);
 
     // Register message listeners
+    this.setupMessageHandlers();
+  }
+
+  private setupMessageHandlers() {
     this.onMessage('ping', (client, timestamp: number) => {
       client.send('pong', timestamp);
+    });
+
+    // Client continuous input stream
+    this.onMessage('player_input', (client, input: PlayerInput) => {
+      const player = this.state.players.get(client.sessionId);
+      const data = this.serverData.get(client.sessionId);
+      if (!player || !data || !player.isAlive) return;
+
+      // Update orientation
+      player.yaw = input.yaw;
+      player.pitch = input.pitch;
+      player.lastProcessedInput = input.seq;
+
+      // Update stance collider
+      if (input.isCrouching !== player.isCrouching) {
+        player.isCrouching = input.isCrouching;
+        this.rapierWorld.removeCollider(data.activeCollider, false);
+        const desc = player.isCrouching ? data.crouchingColliderDesc : data.standingColliderDesc;
+        data.activeCollider = this.rapierWorld.createCollider(desc, data.rigidBody);
+      }
+
+      // Compute kinematic horizontal acceleration
+      const dt = 1 / NETWORK_RULES.serverTickRate;
+      const { desiredVx, desiredVz, canSprint } = computeDesiredMovement(
+        input,
+        {
+          x: player.x,
+          y: player.y,
+          z: player.z,
+          vx: player.vx,
+          vy: player.vy,
+          vz: player.vz,
+          yaw: input.yaw,
+          pitch: input.pitch,
+          isGrounded: data.isGrounded,
+          isCrouching: player.isCrouching,
+          isSprinting: player.isSprinting
+        },
+        dt
+      );
+
+      player.isSprinting = canSprint;
+
+      const { vx, vz } = applyAcceleration(player.vx, player.vz, desiredVx, desiredVz, data.isGrounded, dt);
+      player.vx = vx;
+      player.vz = vz;
+
+      // Vertical gravity & jumping
+      if (data.isGrounded) {
+        player.vy = 0;
+        if (input.isJumping) {
+          player.vy = Math.sqrt(2 * PLAYER_PHYSICS_RULES.gravity * PLAYER_PHYSICS_RULES.jumpHeight);
+          data.isGrounded = false;
+        }
+      } else {
+        player.vy -= PLAYER_PHYSICS_RULES.gravity * dt;
+        player.vy = Math.max(-50, player.vy);
+      }
+
+      // Rapier Character step
+      const movement = { x: player.vx * dt, y: player.vy * dt, z: player.vz * dt };
+      data.characterController.computeColliderMovement(data.activeCollider, movement);
+      const corrected = data.characterController.computedMovement();
+      data.isGrounded = data.characterController.computedGrounded();
+
+      const curTrans = data.rigidBody.translation();
+      const nx = curTrans.x + corrected.x;
+      const ny = curTrans.y + corrected.y;
+      const nz = curTrans.z + corrected.z;
+
+      data.rigidBody.setNextKinematicTranslation({ x: nx, y: ny, z: nz });
+      player.x = nx;
+      player.y = ny;
+      player.z = nz;
+    });
+
+    // Authoritative Fire Intent & Lag Compensation
+    this.onMessage('fire_intent', (client, msg: FireIntentMessage) => {
+      const shooter = this.state.players.get(client.sessionId);
+      const shooterData = this.serverData.get(client.sessionId);
+      if (!shooter || !shooterData || !shooter.isAlive || shooter.isSprinting) return;
+
+      const now = Date.now();
+      const weapon = WEAPONS[msg.weaponId];
+      if (!weapon) return;
+
+      // Cancel shooter's spawn protection on firing (per spec)
+      if (shooter.isSpawnProtected) {
+        shooter.isSpawnProtected = false;
+        shooterData.spawnProtectionEndTime = 0;
+      }
+
+      // Rate limiting / cooldown check
+      if (now - shooterData.lastFireTime < (weapon.fireInterval * 1000 * 0.85)) {
+        return; // anti-cheat fire rate violation
+      }
+      shooterData.lastFireTime = now;
+
+      // Check Ammo
+      if (shooter.ammoInMag <= 0) return;
+      shooter.ammoInMag--;
+
+      // Perform Server-Side Lag Rewind against all other players
+      let closestHit: { victim: PlayerSchema; isHeadshot: boolean; dist: number } | null = null;
+
+      for (const [victimSessionId, victim] of this.state.players.entries()) {
+        if (victimSessionId === client.sessionId || !victim.isAlive) continue;
+
+        // Friendly fire check
+        if (!MATCH_RULES.friendlyFire && victim.team === shooter.team) continue;
+
+        // Spawn protection check
+        if (victim.isSpawnProtected) continue;
+
+        // Rewind victim to client perceived time
+        const rewound = this.lagCompensation.getRewoundPosition(victimSessionId, msg.timestamp, now);
+        if (!rewound) continue;
+
+        const rayResult = this.lagCompensation.raycastTarget(msg.origin, msg.direction, rewound);
+        if (rayResult.hit) {
+          if (!closestHit || rayResult.distance < closestHit.dist) {
+            closestHit = { victim, isHeadshot: rayResult.isHeadshot, dist: rayResult.distance };
+          }
+        }
+      }
+
+      // Resolve Hit Result
+      if (closestHit) {
+        const victim = closestHit.victim;
+        const victimData = this.serverData.get(victim.sessionId);
+        if (!victimData) return;
+
+        // Calculate Damage with falloff
+        let damage = closestHit.isHeadshot ? weapon.damage.head : weapon.damage.body;
+        if (weapon.damage.falloffStartMeters && closestHit.dist > weapon.damage.falloffStartMeters) {
+          damage = Math.round(damage * (weapon.damage.falloffMultiplier || 1.0));
+        }
+
+        // Apply Damage
+        victim.health = Math.max(0, victim.health - damage);
+        victimData.lastDamageTime = now;
+
+        shooter.damage += damage;
+
+        let isKill = false;
+        if (victim.health <= 0) {
+          isKill = true;
+          victim.isAlive = false;
+          victim.deaths++;
+          shooter.kills++;
+          victimData.respawnTimer = MATCH_RULES.respawnDelaySeconds; // 3 seconds death cam
+
+          // Team Score
+          if (shooter.team === 'alpha') this.state.alphaKills++;
+          else this.state.bravoKills++;
+
+          // Check Win Condition
+          if (this.state.alphaKills >= MATCH_RULES.scoreLimit) {
+            this.state.matchState = 'match_end';
+            this.state.winningTeam = 'alpha';
+          } else if (this.state.bravoKills >= MATCH_RULES.scoreLimit) {
+            this.state.matchState = 'match_end';
+            this.state.winningTeam = 'bravo';
+          }
+        }
+
+        // Broadcast hit event
+        const hitEvent: HitEventMessage = {
+          shooterId: client.sessionId,
+          shooterName: shooter.name,
+          victimId: victim.sessionId,
+          victimName: victim.name,
+          victimTeam: victim.team as any,
+          weaponId: weapon.id,
+          damage,
+          isHeadshot: closestHit.isHeadshot,
+          isKill,
+          victimHealth: victim.health
+        };
+
+        this.broadcast('hit_event', hitEvent);
+      }
     });
 
     this.onMessage('select_team', (client, team: 'alpha' | 'bravo') => {
       const player = this.state.players.get(client.sessionId);
       if (player && this.state.matchState === 'lobby') {
-        const teamCount = Array.from(this.state.players.values()).filter(p => p.team === team).length;
-        if (teamCount < MATCH_RULES.teamSize) {
-          player.team = team;
-        }
-      }
-    });
-
-    this.onMessage('select_primary', (client, weaponId: string) => {
-      const player = this.state.players.get(client.sessionId);
-      if (player && (weaponId === 'm416' || weaponId === 'operator')) {
-        player.primaryWeaponId = weaponId;
-        if (player.activeWeaponId === 'm416' || player.activeWeaponId === 'operator') {
-          player.activeWeaponId = weaponId;
-        }
-      }
-    });
-
-    this.onMessage('toggle_ready', (client) => {
-      const player = this.state.players.get(client.sessionId);
-      if (player && this.state.matchState === 'lobby') {
-        player.isReady = !player.isReady;
+        player.team = team;
       }
     });
 
     this.onMessage('start_match', (client) => {
       if (client.sessionId === this.state.hostSessionId && this.state.matchState === 'lobby') {
-        const totalPlayers = this.state.players.size;
-        const alphaPlayers = Array.from(this.state.players.values()).filter(p => p.team === 'alpha').length;
-        const bravoPlayers = Array.from(this.state.players.values()).filter(p => p.team === 'bravo').length;
-
-        // Check minimum player condition
-        if (totalPlayers >= MATCH_RULES.minPlayersToStart && alphaPlayers > 0 && bravoPlayers > 0) {
-          this.state.matchState = 'countdown';
-          this.state.countdownRemaining = MATCH_RULES.countdownSeconds;
-          console.log(`[WarehouseRoom ${this.state.roomCode}] Match countdown started`);
-        }
+        this.state.matchState = 'in_progress';
+        this.state.timeRemaining = MATCH_RULES.timeLimitSeconds;
+        console.log(`[WarehouseRoom ${this.state.roomCode}] Match started by host!`);
       }
     });
   }
@@ -87,13 +292,11 @@ export class WarehouseRoom extends Room<WarehouseRoomState> {
     player.id = client.id;
     player.sessionId = client.sessionId;
 
-    // Sanitize nickname (2-16 chars, fallback to 'Soldier')
     let rawName = (options.nickname || 'Soldier').trim().replace(/<[^>]*>?/gm, '');
     if (rawName.length < 2) rawName = 'Soldier';
     if (rawName.length > 16) rawName = rawName.substring(0, 16);
     player.name = rawName;
 
-    // First player is host
     if (this.state.players.size === 0) {
       player.isHost = true;
       this.state.hostSessionId = client.sessionId;
@@ -104,12 +307,60 @@ export class WarehouseRoom extends Room<WarehouseRoomState> {
     const bravoCount = Array.from(this.state.players.values()).filter(p => p.team === 'bravo').length;
     player.team = alphaCount <= bravoCount ? 'alpha' : 'bravo';
 
+    // Select optimal spawn point
+    const spawn = this.selectSpawnPoint(player.team as 'alpha' | 'bravo');
+    player.x = spawn.x;
+    player.y = spawn.y;
+    player.z = spawn.z;
+    player.yaw = spawn.yaw;
+
+    // Create Rapier RigidBody on Server
+    const bodyDesc = RAPIER.RigidBodyDesc.kinematicPositionBased().setTranslation(spawn.x, spawn.y, spawn.z);
+    const rigidBody = this.rapierWorld.createRigidBody(bodyDesc);
+
+    const radius = PLAYER_PHYSICS_RULES.capsuleRadius;
+    const sHalf = (PLAYER_PHYSICS_RULES.standingCapsuleHeight - 2 * radius) / 2;
+    const cHalf = (PLAYER_PHYSICS_RULES.crouchingCapsuleHeight - 2 * radius) / 2;
+
+    const standingColliderDesc = RAPIER.ColliderDesc.capsule(sHalf, radius).setTranslation(0, sHalf + radius, 0);
+    const crouchingColliderDesc = RAPIER.ColliderDesc.capsule(cHalf, radius).setTranslation(0, cHalf + radius, 0);
+
+    const standingCollider = this.rapierWorld.createCollider(standingColliderDesc, rigidBody);
+    const crouchingCollider = this.rapierWorld.createCollider(crouchingColliderDesc, rigidBody);
+
+    const characterController = this.rapierWorld.createCharacterController(0.02);
+    characterController.enableAutostep(PLAYER_PHYSICS_RULES.stepHeight, 0.2, true);
+    characterController.enableSnapToGround(PLAYER_PHYSICS_RULES.stepHeight);
+    characterController.setSlideEnabled(true);
+
+    player.isSpawnProtected = true;
+    const now = Date.now();
+
+    this.serverData.set(client.sessionId, {
+      characterController,
+      rigidBody,
+      standingColliderDesc,
+      crouchingColliderDesc,
+      activeCollider: standingCollider,
+      lastDamageTime: now,
+      lastFireTime: 0,
+      spawnProtectionEndTime: now + MATCH_RULES.spawnProtectionSeconds * 1000,
+      respawnTimer: 0,
+      isGrounded: true
+    });
+
     this.state.players.set(client.sessionId, player);
     console.log(`[WarehouseRoom ${this.state.roomCode}] Player joined: ${player.name} (${player.team})`);
   }
 
   onLeave(client: Client, consented?: boolean) {
     console.log(`[WarehouseRoom ${this.state.roomCode}] Player left: ${client.sessionId}`);
+    const data = this.serverData.get(client.sessionId);
+    if (data) {
+      this.rapierWorld.removeRigidBody(data.rigidBody);
+      this.serverData.delete(client.sessionId);
+    }
+    this.lagCompensation.removePlayer(client.sessionId);
     this.state.players.delete(client.sessionId);
 
     // Host migration
@@ -119,33 +370,110 @@ export class WarehouseRoom extends Room<WarehouseRoomState> {
         this.state.hostSessionId = nextHostSession;
         const newHost = this.state.players.get(nextHostSession);
         if (newHost) newHost.isHost = true;
-        console.log(`[WarehouseRoom ${this.state.roomCode}] Host migrated to: ${newHost?.name}`);
       }
     }
   }
 
   update(deltaTime: number) {
     this.state.serverTick++;
+    const now = Date.now();
     const dtSeconds = deltaTime / 1000;
 
-    // Handle lobby/countdown timer
-    if (this.state.matchState === 'countdown') {
-      this.state.countdownRemaining -= dtSeconds;
-      if (this.state.countdownRemaining <= 0) {
-        this.state.matchState = 'in_progress';
-        this.state.timeRemaining = MATCH_RULES.timeLimitSeconds;
-        console.log(`[WarehouseRoom ${this.state.roomCode}] Match IN PROGRESS!`);
+    // 1. Step Rapier physics world on server
+    this.rapierWorld.step();
+
+    // 2. Process each player
+    for (const [sessionId, player] of this.state.players.entries()) {
+      const data = this.serverData.get(sessionId);
+      if (!data) continue;
+
+      // Record snapshot for lag compensation buffer
+      this.lagCompensation.recordSnapshot(sessionId, {
+        timestamp: now,
+        x: player.x,
+        y: player.y,
+        z: player.z,
+        isCrouched: player.isCrouching,
+        isAlive: player.isAlive
+      });
+
+      // Spawn protection expiration
+      if (player.isSpawnProtected && now >= data.spawnProtectionEndTime) {
+        player.isSpawnProtected = false;
       }
-    } else if (this.state.matchState === 'in_progress') {
+
+      // Dead Player Respawn Countdown
+      if (!player.isAlive) {
+        data.respawnTimer -= dtSeconds;
+        if (data.respawnTimer <= 0) {
+          this.respawnPlayer(player, data, now);
+        }
+      } else {
+        // Health Regeneration (5 HP/s after 6s no damage)
+        if (player.health < HEALTH_RULES.maxHealth && (now - data.lastDamageTime) >= HEALTH_RULES.regenDelaySeconds * 1000) {
+          player.health = Math.min(HEALTH_RULES.maxHealth, player.health + HEALTH_RULES.regenRatePerSecond * dtSeconds);
+        }
+      }
+    }
+
+    // Match Timer
+    if (this.state.matchState === 'in_progress') {
       this.state.timeRemaining -= dtSeconds;
       if (this.state.timeRemaining <= 0) {
         this.state.matchState = 'match_end';
+        if (this.state.alphaKills > this.state.bravoKills) this.state.winningTeam = 'alpha';
+        else if (this.state.bravoKills > this.state.alphaKills) this.state.winningTeam = 'bravo';
+        else this.state.matchState = 'sudden_death'; // Ties go to sudden death per spec
       }
     }
   }
 
-  onDispose() {
-    console.log(`[WarehouseRoom ${this.state.roomCode}] Disposed`);
+  private selectSpawnPoint(team: 'alpha' | 'bravo'): SpawnPoint {
+    const candidates = WAREHOUSE_MAP.spawns.filter(s => s.team === team || s.team === 'neutral');
+    if (candidates.length === 0) return WAREHOUSE_MAP.spawns[0];
+
+    // Pick spawn furthest from any enemy player
+    let bestSpawn = candidates[0];
+    let maxMinDist = -1;
+
+    for (const spawn of candidates) {
+      let minDistToEnemy = Infinity;
+      for (const [_, other] of this.state.players.entries()) {
+        if (other.isAlive && other.team !== team) {
+          const d = Math.hypot(spawn.x - other.x, spawn.z - other.z);
+          if (d < minDistToEnemy) minDistToEnemy = d;
+        }
+      }
+      if (minDistToEnemy > maxMinDist) {
+        maxMinDist = minDistToEnemy;
+        bestSpawn = spawn;
+      }
+    }
+
+    return bestSpawn;
+  }
+
+  private respawnPlayer(player: PlayerSchema, data: ServerPlayerData, now: number) {
+    const spawn = this.selectSpawnPoint(player.team as 'alpha' | 'bravo');
+    player.x = spawn.x;
+    player.y = spawn.y;
+    player.z = spawn.z;
+    player.yaw = spawn.yaw;
+    player.health = HEALTH_RULES.maxHealth;
+    player.isAlive = true;
+    player.isSpawnProtected = true;
+    player.ammoInMag = WEAPONS[player.primaryWeaponId as keyof typeof WEAPONS]?.magSize || 30;
+
+    data.spawnProtectionEndTime = now + MATCH_RULES.spawnProtectionSeconds * 1000;
+    data.rigidBody.setTranslation({ x: spawn.x, y: spawn.y, z: spawn.z }, true);
+
+    this.broadcast('spawn_event', {
+      playerId: player.sessionId,
+      x: spawn.x,
+      y: spawn.y,
+      z: spawn.z,
+      yaw: spawn.yaw,
+      spawnProtectionUntil: data.spawnProtectionEndTime
+    });
   }
 }
-

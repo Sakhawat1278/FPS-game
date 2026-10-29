@@ -402,3 +402,4 @@ export class WeaponHUD {
     document.head.appendChild(style);
   }
 }
+
