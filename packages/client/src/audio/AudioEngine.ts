@@ -40,6 +40,7 @@ export class AudioEngine {
   constructor() {
     // Pre-fetch realistic audio files immediately so they are cached in RAM
     this.preloadAudio('m416_fire', '/audio/m416_fire.mp3');
+    this.preloadAudio('m416_reload', '/audio/m416_reload.mp3');
 
     const unlock = () => {
       this.initContext();
@@ -374,6 +375,19 @@ export class AudioEngine {
     if (!this.ctx || !this.isUnlocked) return;
     const t = this.ctx.currentTime;
 
+    const sample = this.audioBuffers.get('m416_reload');
+    if (sample) {
+      const source = this.ctx.createBufferSource();
+      source.buffer = sample;
+      const gain = this.ctx.createGain();
+      gain.gain.setValueAtTime(0.9, t);
+      source.connect(gain);
+      gain.connect(this.sfxGain);
+      source.start(t);
+      return;
+    }
+
+    // Procedural fallback
     const osc1 = this.ctx.createOscillator();
     const g1 = this.ctx.createGain();
     osc1.frequency.setValueAtTime(600, t);
