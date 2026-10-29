@@ -170,3 +170,4 @@ export class CharacterController {
     return Math.sqrt(this.velocity.x * this.velocity.x + this.velocity.z * this.velocity.z);
   }
 }
+

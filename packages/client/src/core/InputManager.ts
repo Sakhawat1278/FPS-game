@@ -6,7 +6,9 @@ export class InputManager {
 
   // Key states
   private keys: Record<string, boolean> = {};
-  
+  public isLmbDown: boolean = false;
+  public isRmbDown: boolean = false;
+
   // Look angles (radians)
   public yaw: number = 0;
   public pitch: number = 0;
@@ -17,8 +19,13 @@ export class InputManager {
   // Sequencer
   private seq: number = 0;
 
-  // Custom callback for toggles (e.g. F3)
+  // Custom callbacks
   public onDebugToggle?: () => void;
+  public onReload?: () => void;
+  public onSlot1?: () => void;
+  public onSlot2?: () => void;
+  public onSwapPrimary?: () => void;
+  public onToggleZoom?: () => void;
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
@@ -36,6 +43,7 @@ export class InputManager {
       this.isPointerLocked = document.pointerLockElement === this.canvas;
     });
 
+    // Mouse movement
     document.addEventListener('mousemove', (e) => {
       if (!this.isPointerLocked) return;
 
@@ -47,6 +55,30 @@ export class InputManager {
       this.pitch = Math.max(-maxPitch, Math.min(maxPitch, this.pitch));
     });
 
+    // Mouse buttons
+    window.addEventListener('mousedown', (e) => {
+      if (!this.isPointerLocked) return;
+      if (e.button === 0) this.isLmbDown = true;
+      if (e.button === 2) this.isRmbDown = true;
+    });
+
+    window.addEventListener('mouseup', (e) => {
+      if (e.button === 0) this.isLmbDown = false;
+      if (e.button === 2) this.isRmbDown = false;
+    });
+
+    // Prevent context menu on right click
+    window.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+    });
+
+    // Mouse wheel for Operator zoom / swap
+    window.addEventListener('wheel', (e) => {
+      if (!this.isPointerLocked) return;
+      if (this.onToggleZoom) this.onToggleZoom();
+    });
+
+    // Keyboard keys
     window.addEventListener('keydown', (e) => {
       const code = e.code;
       this.keys[code] = true;
@@ -54,6 +86,16 @@ export class InputManager {
       if (code === 'F3') {
         e.preventDefault();
         if (this.onDebugToggle) this.onDebugToggle();
+      } else if (code === 'KeyR') {
+        if (this.onReload) this.onReload();
+      } else if (code === 'Digit1') {
+        if (this.onSlot1) this.onSlot1();
+      } else if (code === 'Digit2') {
+        if (this.onSlot2) this.onSlot2();
+      } else if (code === 'KeyQ') {
+        if (this.onSwapPrimary) this.onSwapPrimary();
+      } else if (code === 'KeyZ') {
+        if (this.onToggleZoom) this.onToggleZoom();
       }
     });
 
@@ -97,8 +139,8 @@ export class InputManager {
       isSprinting,
       isCrouching,
       isJumping,
-      isShooting: false,
-      isAiming: false
+      isShooting: this.isLmbDown,
+      isAiming: this.isRmbDown
     };
   }
 }

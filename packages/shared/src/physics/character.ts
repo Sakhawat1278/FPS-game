@@ -112,3 +112,4 @@ export function applyAcceleration(
 
   return { vx: newVx, vz: newVz };
 }
+

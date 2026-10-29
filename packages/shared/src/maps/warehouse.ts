@@ -173,3 +173,4 @@ export const WAREHOUSE_MAP: MapData = {
     { id: 'neutral_spawn_6', team: 'neutral', x: 10, y: 4.5, z: 19.5, yaw: Math.PI } // on catwalk
   ]
 };
+
