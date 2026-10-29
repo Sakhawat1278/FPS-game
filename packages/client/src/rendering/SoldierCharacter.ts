@@ -18,15 +18,20 @@ export class SoldierCharacter {
   public modelGroup: THREE.Group;
   public isReady: boolean = false;
 
-  // Cached template
+  // Cached template & clips
   private static templatePromise: Promise<THREE.Group> | null = null;
   private static cachedTemplate: THREE.Group | null = null;
+  private static cachedClips: THREE.AnimationClip[] = [];
 
-  // Rigged Bones
+  // Animation mixer for baked Mark_Idle_Pose
+  private mixer?: THREE.AnimationMixer;
+  private idleAction?: THREE.AnimationAction;
+
+  // Rigged Bones (Character Creator Humanoid)
   private pelvis?: THREE.Bone;
+  private waist?: THREE.Bone;
   private spine1?: THREE.Bone;
   private spine2?: THREE.Bone;
-  private spine3?: THREE.Bone;
   private head?: THREE.Bone;
   private thighL?: THREE.Bone;
   private calfL?: THREE.Bone;
@@ -36,14 +41,15 @@ export class SoldierCharacter {
   private lowerarmR?: THREE.Bone;
   private upperarmL?: THREE.Bone;
   private lowerarmL?: THREE.Bone;
-  private weaponSocket?: THREE.Object3D;
+  private handR?: THREE.Bone;
+  private handL?: THREE.Bone;
 
   // Rest transforms
   private restPelvisPos = new THREE.Vector3();
   private restPelvisRot = new THREE.Euler();
+  private restWaistRot = new THREE.Euler();
   private restSpine1Rot = new THREE.Euler();
   private restSpine2Rot = new THREE.Euler();
-  private restSpine3Rot = new THREE.Euler();
   private restHeadRot = new THREE.Euler();
   private restThighLRot = new THREE.Euler();
   private restCalfLRot = new THREE.Euler();
@@ -61,7 +67,6 @@ export class SoldierCharacter {
 
   // Kinematic cycle state
   private walkCycle: number = 0;
-  private idleTime: number = 0;
   private crouchAmount: number = 0;
   private sprintWeight: number = 0;
   private aimPitch: number = 0;
@@ -87,18 +92,34 @@ export class SoldierCharacter {
       this.templatePromise = new Promise((resolve, reject) => {
         const loader = new GLTFLoader();
         loader.load(
-          '/models/character/winter_soldier.glb',
+          '/models/character/tactical_soldier.glb',
           (gltf) => {
-            console.log('[SoldierCharacter] Winter Soldier character model loaded successfully!');
+            console.log('[SoldierCharacter] Full Tactical Gear Soldier loaded successfully!');
             const root = gltf.scene;
+
+            // Cache baked animation clips
+            if (gltf.animations && gltf.animations.length > 0) {
+              SoldierCharacter.cachedClips = gltf.animations;
+              console.log('[SoldierCharacter] Cached animation clips:', gltf.animations.map((a) => a.name));
+            }
+
+            // Optimize meshes and shadows
             root.traverse((child) => {
               if ((child as THREE.Mesh).isMesh) {
                 const mesh = child as THREE.Mesh;
                 mesh.frustumCulled = true;
-                // Only primary body & head cast shadows to keep shadow map rendering ultra fast (saves ~100k skinned vertices per shadow pass)
+
+                // Only major silhouette meshes cast shadow (plate vest, kitel jacket, pants, helmet, boots)
                 const name = mesh.name || '';
-                const isMainSilhouette = name.includes('Equip_02') || name.includes('Equip_03') || name.includes('Head');
-                mesh.castShadow = isMainSilhouette;
+                const isSilhouette =
+                  name.includes('Plate') ||
+                  name.includes('Kitel') ||
+                  name.includes('Pants') ||
+                  name.includes('Helmet') ||
+                  name.includes('Boots') ||
+                  name.includes('HeadMasked');
+
+                mesh.castShadow = isSilhouette;
                 mesh.receiveShadow = false;
 
                 const m = mesh.material as THREE.MeshStandardMaterial;
@@ -108,12 +129,13 @@ export class SoldierCharacter {
                 }
               }
             });
+
             this.cachedTemplate = root;
             resolve(root);
           },
           undefined,
           (err) => {
-            console.error('[SoldierCharacter] Failed to load Winter Soldier model:', err);
+            console.error('[SoldierCharacter] Failed to load tactical soldier model:', err);
             reject(err);
           }
         );
@@ -131,9 +153,19 @@ export class SoldierCharacter {
       this.bindSkeleton(clone);
       this.attachAssaultRifle();
       this.attachTeamInsignia();
+
+      // Initialize Animation Mixer if baked idle animation is present
+      if (SoldierCharacter.cachedClips.length > 0) {
+        this.mixer = new THREE.AnimationMixer(clone);
+        const idleClip = SoldierCharacter.cachedClips[0]; // Mark_Idle_Pose
+        this.idleAction = this.mixer.clipAction(idleClip);
+        this.idleAction.setLoop(THREE.LoopRepeat, Infinity);
+        this.idleAction.play();
+      }
+
       this.isReady = true;
     } catch (err) {
-      console.warn('[SoldierCharacter] Falling back to procedural proxy geometry:', err);
+      console.warn('[SoldierCharacter] Fallback geometry activated:', err);
       this.createFallbackMesh();
     }
   }
@@ -147,32 +179,33 @@ export class SoldierCharacter {
       return bone;
     };
 
-    this.pelvis = find('pelvis_09');
-    this.spine1 = find('spine_01_010');
-    this.spine2 = find('spine_02_011');
-    this.spine3 = find('spine_03_012');
-    this.head = find('head_0146');
+    this.pelvis = find('CC_Base_Pelvis_02') || find('CC_Base_Hip_01');
+    this.waist = find('CC_Base_Waist_033');
+    this.spine1 = find('CC_Base_Spine01_034');
+    this.spine2 = find('CC_Base_Spine02_035');
+    this.head = find('CC_Base_Head_038');
 
-    this.thighL = find('thigh_l_0286');
-    this.calfL = find('calf_l_0287');
-    this.thighR = find('thigh_r_0315');
-    this.calfR = find('calf_r_0316');
+    this.thighL = find('CC_Base_L_Thigh_03');
+    this.calfL = find('CC_Base_L_Calf_04');
+    this.thighR = find('CC_Base_R_Thigh_018');
+    this.calfR = find('CC_Base_R_Calf_021');
 
-    this.upperarmR = find('upperarm_r_081');
-    this.lowerarmR = find('lowerarm_r_082');
-    this.upperarmL = find('upperarm_l_016');
-    this.lowerarmL = find('lowerarm_l_017');
+    this.upperarmR = find('CC_Base_R_Upperarm_074');
+    this.lowerarmR = find('CC_Base_R_Forearm_077');
+    this.handR = find('CC_Base_R_Hand_081');
 
-    this.weaponSocket = find('hand_rSocket_0109') || find('weapon_r_0103') || find('hand_r_083');
+    this.upperarmL = find('CC_Base_L_Upperarm_050');
+    this.lowerarmL = find('CC_Base_L_Forearm_051');
+    this.handL = find('CC_Base_L_Hand_055');
 
-    // Save rest rotations
+    // Save rest transforms
     if (this.pelvis) {
       this.restPelvisPos.copy(this.pelvis.position);
       this.restPelvisRot.copy(this.pelvis.rotation);
     }
+    if (this.waist) this.restWaistRot.copy(this.waist.rotation);
     if (this.spine1) this.restSpine1Rot.copy(this.spine1.rotation);
     if (this.spine2) this.restSpine2Rot.copy(this.spine2.rotation);
-    if (this.spine3) this.restSpine3Rot.copy(this.spine3.rotation);
     if (this.head) this.restHeadRot.copy(this.head.rotation);
 
     if (this.thighL) this.restThighLRot.copy(this.thighL.rotation);
@@ -185,19 +218,18 @@ export class SoldierCharacter {
     if (this.upperarmL) this.restUpperarmLRot.copy(this.upperarmL.rotation);
     if (this.lowerarmL) this.restLowerarmLRot.copy(this.lowerarmL.rotation);
 
-    // Initial tactical combat arm pose
     this.applyTacticalArmPose(0);
   }
 
   private attachAssaultRifle() {
-    if (!this.weaponSocket) return;
+    if (!this.handR) return;
 
     this.rifle = this.buildM416Mesh();
-    // Socket offset & orientation calibrated to right palm grip pointing along character aim
-    this.rifle.position.set(-0.02, 0.04, -0.05);
-    this.rifle.rotation.set(1.8162, 1.0983, -0.2758);
+    // Calibrated position & orientation to seat pistol grip into CC_Base_R_Hand_081 pointing along aim
+    this.rifle.position.set(-0.02, 0.08, -0.04);
+    this.rifle.rotation.set(1.9013, -1.1699, 0.0423);
 
-    this.weaponSocket.add(this.rifle);
+    this.handR.add(this.rifle);
   }
 
   private buildM416Mesh(): THREE.Group {
@@ -258,7 +290,7 @@ export class SoldierCharacter {
     grip.castShadow = true;
     root.add(grip);
 
-    // 6. Adjustable Tactical Stock & Buffer Tube
+    // 6. Tactical Stock & Buffer Tube
     const tube = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.16, 8), darkMetal);
     tube.rotation.x = Math.PI / 2;
     tube.position.set(0, 0.02, 0.18);
@@ -269,7 +301,7 @@ export class SoldierCharacter {
     stock.castShadow = true;
     root.add(stock);
 
-    // 7. Holographic Tactical Sight on top rail
+    // 7. Holographic Sight
     const sightBase = new THREE.Mesh(new THREE.BoxGeometry(0.038, 0.03, 0.10), darkMetal);
     sightBase.position.set(0, 0.075, -0.08);
     const sightGlass = new THREE.Mesh(
@@ -279,7 +311,7 @@ export class SoldierCharacter {
     sightGlass.position.set(0, 0.082, -0.08);
     root.add(sightBase, sightGlass);
 
-    // 8. Muzzle Flash Sprite (Triggered on fire)
+    // 8. Muzzle Flash Sprite
     const flashGeo = new THREE.OctahedronGeometry(0.08, 0);
     const flashMat = new THREE.MeshBasicMaterial({ color: 0xffedd5, transparent: true, opacity: 0 });
     this.muzzleFlashMesh = new THREE.Mesh(flashGeo, flashMat);
@@ -290,22 +322,21 @@ export class SoldierCharacter {
   }
 
   private attachTeamInsignia() {
-    // Add glowing tactical shoulder patch
     const isAlpha = this.team === 'alpha';
     const insigniaColor = isAlpha ? 0x2563eb : 0xea580c;
     const glowColor = isAlpha ? 0x60a5fa : 0xfb923c;
 
-    const patchGeo = new THREE.BoxGeometry(0.08, 0.12, 0.02);
+    const patchGeo = new THREE.BoxGeometry(0.06, 0.10, 0.02);
     const patchMat = new THREE.MeshStandardMaterial({
       color: insigniaColor,
       emissive: glowColor,
-      emissiveIntensity: 0.45,
+      emissiveIntensity: 0.5,
       roughness: 0.5,
       metalness: 0.3
     });
 
     const patch = new THREE.Mesh(patchGeo, patchMat);
-    patch.position.set(0.24, 1.42, 0.0);
+    patch.position.set(0.22, 1.40, 0.0);
     patch.rotation.y = Math.PI / 2;
     this.modelGroup.add(patch);
   }
@@ -313,36 +344,41 @@ export class SoldierCharacter {
   private applyTacticalArmPose(sprintLerp: number) {
     if (!this.upperarmR || !this.lowerarmR || !this.upperarmL || !this.lowerarmL) return;
 
-    // Ready Stance:
-    // Right arm firmly grasps grip at chest level
-    const baseUpperRY = this.restUpperarmRRot.y + 0.45;
-    const baseUpperRZ = this.restUpperarmRRot.z - 0.65;
-    const baseLowerRY = this.restLowerarmRRot.y + 0.35;
-    const baseLowerRZ = this.restLowerarmRRot.z - 0.45;
+    // Tactical Ready Stance:
+    // Right arm brings grip firmly to chest level
+    const baseUpperRX = this.restUpperarmRRot.x + 0.70;
+    const baseUpperRZ = this.restUpperarmRRot.z + 0.35;
+    const baseLowerRX = this.restLowerarmRRot.x + 0.65;
+    const baseLowerRZ = this.restLowerarmRRot.z + 0.25;
 
-    // Left arm grips forward handguard across chest
-    const baseUpperLY = this.restUpperarmLRot.y + 0.55;
-    const baseUpperLZ = this.restUpperarmLRot.z - 0.75;
-    const baseLowerLY = this.restLowerarmLRot.y - 0.45;
-    const baseLowerLZ = this.restLowerarmLRot.z - 0.65;
+    // Left arm extends across chest cradling the handguard
+    const baseUpperLX = this.restUpperarmLRot.x + 0.85;
+    const baseUpperLZ = this.restUpperarmLRot.z - 0.45;
+    const baseLowerLZ = this.restLowerarmLRot.z + 0.85;
+    const baseLowerLX = this.restLowerarmLRot.x + 0.35;
 
-    // When sprinting: drop into tactical low-ready carry
-    const sprintDropZ = sprintLerp * 0.35;
-    const sprintCarryY = sprintLerp * 0.15;
+    // Sprinting drops rifle into tactical low-ready carry
+    const sprintDropX = sprintLerp * 0.35;
+    const sprintCarryZ = sprintLerp * 0.15;
 
-    this.upperarmR.rotation.y = baseUpperRY + sprintCarryY;
-    this.upperarmR.rotation.z = baseUpperRZ + sprintDropZ;
-    this.lowerarmR.rotation.y = baseLowerRY;
+    this.upperarmR.rotation.x = baseUpperRX - sprintDropX;
+    this.upperarmR.rotation.z = baseUpperRZ + sprintCarryZ;
+    this.lowerarmR.rotation.x = baseLowerRX;
     this.lowerarmR.rotation.z = baseLowerRZ;
 
-    this.upperarmL.rotation.y = baseUpperLY - sprintCarryY;
-    this.upperarmL.rotation.z = baseUpperLZ + sprintDropZ;
-    this.lowerarmL.rotation.y = baseLowerLY;
+    this.upperarmL.rotation.x = baseUpperLX - sprintDropX;
+    this.upperarmL.rotation.z = baseUpperLZ - sprintCarryZ;
     this.lowerarmL.rotation.z = baseLowerLZ;
+    this.lowerarmL.rotation.x = baseLowerLX;
   }
 
   public update(dt: number, state: SoldierKinematicState) {
     if (!this.isReady || !this.group.visible) return;
+
+    // Update baked breathing animation mixer
+    if (this.mixer) {
+      this.mixer.update(dt);
+    }
 
     // Handle Muzzle Flash decay
     if (this.muzzleFlashMesh) {
@@ -374,24 +410,18 @@ export class SoldierCharacter {
     const targetSprint = state.isSprinting && state.speed > 5.0 ? 1.0 : 0.0;
     this.sprintWeight += (targetSprint - this.sprintWeight) * Math.min(1.0, 8.0 * dt);
 
-    // Aim Pitch Tracking (smooth interpolation)
+    // Aim Pitch Tracking
     this.aimPitch += (state.pitch - this.aimPitch) * Math.min(1.0, 14.0 * dt);
 
     // 1. Spine Kinematics & Aim Pitch
-    if (this.spine1 && this.spine2 && this.spine3) {
-      // Idle Breathing Wave
-      this.idleTime += dt;
-      const breathing = Math.sin(this.idleTime * 2.2) * 0.015;
-
-      // Sprint Torso Lean (forward into run)
+    if (this.spine1 && this.spine2) {
       const forwardLean = this.sprintWeight * 0.22 + this.crouchAmount * 0.12;
 
-      this.spine1.rotation.z = this.restSpine1Rot.z + forwardLean * 0.4;
-      this.spine2.rotation.z = this.restSpine2Rot.z + forwardLean * 0.3 - this.aimPitch * 0.45;
-      this.spine3.rotation.z = this.restSpine3Rot.z + forwardLean * 0.3 - this.aimPitch * 0.45 + breathing;
+      this.spine1.rotation.x = this.restSpine1Rot.x + forwardLean * 0.4 - this.aimPitch * 0.45;
+      this.spine2.rotation.x = this.restSpine2Rot.x + forwardLean * 0.3 - this.aimPitch * 0.45;
 
       if (this.head) {
-        this.head.rotation.z = this.restHeadRot.z - this.aimPitch * 0.10;
+        this.head.rotation.x = this.restHeadRot.x - this.aimPitch * 0.10;
       }
     }
 
@@ -403,48 +433,43 @@ export class SoldierCharacter {
       const isMoving = state.speed > 0.25;
 
       if (isMoving) {
-        // Cadence scales dynamically with actual velocity
         const cadence = state.isSprinting ? Math.max(6.5, state.speed * 2.8) : Math.max(3.8, state.speed * 2.4);
         this.walkCycle += dt * cadence;
 
-        // Leg Swing Amplitude
-        const baseAmp = state.isSprinting ? 0.82 : 0.48;
-        // Suppress swing amplitude when crouched
+        const baseAmp = state.isSprinting ? 0.78 : 0.46;
         const swingAmp = baseAmp * (1.0 - this.crouchAmount * 0.35);
 
         const sinWalk = Math.sin(this.walkCycle);
 
-        // Left / Right Thigh pitch swing
-        this.thighL.rotation.z = this.restThighLRot.z + sinWalk * swingAmp + this.crouchAmount * 0.65;
-        this.thighR.rotation.z = this.restThighRRot.z - sinWalk * swingAmp + this.crouchAmount * 0.65;
+        // CC3 Thighs swing forward/backward along local Y axis
+        this.thighL.rotation.y = this.restThighLRot.y + sinWalk * swingAmp + this.crouchAmount * 0.65;
+        this.thighR.rotation.y = this.restThighRRot.y - sinWalk * swingAmp + this.crouchAmount * 0.65;
 
-        // Knee / Calf flexion on back-swing
-        const kneeAmp = swingAmp * (state.isSprinting ? 1.45 : 1.25);
+        // Knees bend backward along local X axis on backward swing
+        const kneeAmp = swingAmp * (state.isSprinting ? 1.4 : 1.2);
         const flexL = Math.max(0, -sinWalk) * kneeAmp;
         const flexR = Math.max(0, sinWalk) * kneeAmp;
 
-        this.calfL.rotation.z = this.restCalfLRot.z - flexL - this.crouchAmount * 0.85;
-        this.calfR.rotation.z = this.restCalfRRot.z - flexR - this.crouchAmount * 0.85;
+        this.calfL.rotation.x = this.restCalfLRot.x - flexL - this.crouchAmount * 0.85;
+        this.calfR.rotation.x = this.restCalfRRot.x - flexR - this.crouchAmount * 0.85;
 
-        // Vertical Hip Bob
-        const bob = Math.abs(sinWalk) * (state.isSprinting ? 0.055 : 0.028);
+        // Hip Bobbing
+        const bob = Math.abs(sinWalk) * (state.isSprinting ? 0.055 : 0.026);
         this.pelvis.position.y = this.restPelvisPos.y - this.crouchAmount * 0.38 + bob;
       } else {
-        // Idle Stance: smooth return to rest
+        // Idle return to rest
         const returnSpeed = Math.min(1.0, 8.0 * dt);
-        this.thighL.rotation.z += (this.restThighLRot.z + this.crouchAmount * 0.65 - this.thighL.rotation.z) * returnSpeed;
-        this.thighR.rotation.z += (this.restThighRRot.z + this.crouchAmount * 0.65 - this.thighR.rotation.z) * returnSpeed;
-        this.calfL.rotation.z += (this.restCalfLRot.z - this.crouchAmount * 0.85 - this.calfL.rotation.z) * returnSpeed;
-        this.calfR.rotation.z += (this.restCalfRRot.z - this.crouchAmount * 0.85 - this.calfR.rotation.z) * returnSpeed;
+        this.thighL.rotation.y += (this.restThighLRot.y + this.crouchAmount * 0.65 - this.thighL.rotation.y) * returnSpeed;
+        this.thighR.rotation.y += (this.restThighRRot.y + this.crouchAmount * 0.65 - this.thighR.rotation.y) * returnSpeed;
+        this.calfL.rotation.x += (this.restCalfLRot.x - this.crouchAmount * 0.85 - this.calfL.rotation.x) * returnSpeed;
+        this.calfR.rotation.x += (this.restCalfRRot.x - this.crouchAmount * 0.85 - this.calfR.rotation.x) * returnSpeed;
 
-        const breathingBob = Math.sin(this.idleTime * 2.2) * 0.008;
-        this.pelvis.position.y += (this.restPelvisPos.y - this.crouchAmount * 0.38 + breathingBob - this.pelvis.position.y) * returnSpeed;
+        this.pelvis.position.y += (this.restPelvisPos.y - this.crouchAmount * 0.38 - this.pelvis.position.y) * returnSpeed;
       }
     }
   }
 
   private createFallbackMesh() {
-    // High-tech stylized proxy if GLTF fails
     const mat = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.5, metalness: 0.4 });
     const body = new THREE.Mesh(new THREE.BoxGeometry(0.5, 1.4, 0.3), mat);
     body.position.set(0, 0.9, 0);
@@ -452,9 +477,11 @@ export class SoldierCharacter {
   }
 
   public destroy() {
+    if (this.mixer) {
+      this.mixer.stopAllAction();
+    }
     if (this.group.parent) {
       this.group.parent.remove(this.group);
     }
   }
 }
-
