@@ -5,6 +5,7 @@ import { InputManager } from './core/InputManager';
 import { RealisticWarehouse } from './world/RealisticWarehouse';
 import { CharacterController } from './core/CharacterController';
 import { Viewmodel } from './rendering/Viewmodel';
+import { SoldierCharacter } from './rendering/SoldierCharacter';
 import { DebugOverlay } from './ui/DebugOverlay';
 import { AudioEngine } from './audio/AudioEngine';
 import { MovementAudio } from './audio/MovementAudio';
@@ -103,8 +104,11 @@ async function bootstrap() {
   const startSpawn = WAREHOUSE_MAP.spawns[0];
   const charController = new CharacterController(rapierWorld, camera, startSpawn.x, startSpawn.y, startSpawn.z);
 
-  // Viewmodel
+  // Viewmodel & Local 3D Soldier Model
   const viewmodel = new Viewmodel(camera);
+  const localSoldier = new SoldierCharacter('alpha');
+  scene.add(localSoldier.group);
+  localSoldier.group.visible = false;
 
   // Input Manager
   const inputManager = new InputManager(canvas);
@@ -164,6 +168,10 @@ async function bootstrap() {
     networkController.sendSwitchWeapon(weaponManager.activeWeapon.id);
   };
   inputManager.onToggleZoom = () => weaponManager.toggleOperatorZoom();
+  inputManager.onTogglePerspective = () => {
+    charController.isThirdPerson = !charController.isThirdPerson;
+    console.log('[Camera] Perspective toggled:', charController.isThirdPerson ? 'Third Person' : 'First Person');
+  };
 
   // Dev Bot Fill (Lobby button or F4 shortcut)
   roomLobby.onFillBots = () => networkController.sendFillBots();
@@ -270,6 +278,8 @@ async function bootstrap() {
 
     const input = inputManager.sampleInput(clientTick);
 
+    let firedThisFrame = false;
+
     // Firing Logic (Sprint-to-fire shift and firing)
     if (input.isShooting && inputManager.isLocked && networkController.isLocalAlive && !pauseMenu.isVisible) {
       // Shooting while running initiates sprint-to-fire shift and auto-walk
@@ -279,6 +289,7 @@ async function bootstrap() {
       }
       const fired = weaponManager.tryFire(now, charController.isSprinting, dummies, warehouse.mapGroup);
       if (fired) {
+        firedThisFrame = true;
         _aimDir.set(0, 0, -1).applyQuaternion(camera.quaternion);
         networkController.sendFireIntent(weaponManager.activeWeapon.id, camera.position, _aimDir);
         viewmodel.playFire();
@@ -326,6 +337,28 @@ async function bootstrap() {
       weaponManager.recoilSystem.viewmodelKickZ,
       weaponManager.recoilSystem.viewmodelKickPitch
     );
+
+    // Update Local Soldier Character & Perspective Toggle
+    localSoldier.group.position.copy(charController.position);
+    localSoldier.group.rotation.y = input.yaw;
+    localSoldier.group.visible = charController.isThirdPerson;
+    viewmodel.group.visible = !charController.isThirdPerson;
+
+    localSoldier.update(dt, {
+      speed: charController.horizontalSpeed,
+      isGrounded: charController.isGrounded,
+      isCrouched: charController.isCrouched,
+      isSprinting: effectiveSprinting,
+      pitch: input.pitch,
+      yaw: input.yaw,
+      isAlive: networkController.isLocalAlive,
+      isFiring: firedThisFrame
+    });
+
+    // Update target dummies
+    for (const d of dummies) {
+      d.update(dt, camera.position);
+    }
 
     networkController.update(Date.now(), camera.position);
     vfx.update(dt);

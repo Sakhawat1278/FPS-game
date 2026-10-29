@@ -27,6 +27,12 @@ export class CharacterController {
   public isGrounded: boolean = false;
   public isCrouched: boolean = false;
   public isSprinting: boolean = false;
+  public isThirdPerson: boolean = false;
+
+  // Third-person camera offsets
+  private tpsDistance: number = 2.2;
+  private tpsSideOffset: number = 0.45;
+  private tpsHeightOffset: number = 0.15;
 
   // Camera eye heights
   private standingEyeHeight = 1.65;
@@ -153,11 +159,20 @@ export class CharacterController {
     }
 
     // 7. Update Camera transform
-    this.camera.position.set(this.position.x, this.position.y + this.currentEyeHeight, this.position.z);
-    
-    // Euler rotation: Pitch (X), Yaw (Y) in 'YXZ' order
     const euler = new THREE.Euler(input.pitch, input.yaw, 0, 'YXZ');
     this.camera.quaternion.setFromEuler(euler);
+
+    const eyeY = this.position.y + this.currentEyeHeight;
+    if (!this.isThirdPerson) {
+      this.camera.position.set(this.position.x, eyeY, this.position.z);
+    } else {
+      // Over-the-shoulder tactical third-person camera
+      const right = new THREE.Vector3(1, 0, 0).applyQuaternion(this.camera.quaternion);
+      const back = new THREE.Vector3(0, 0, 1).applyQuaternion(this.camera.quaternion);
+      this.camera.position.set(this.position.x, eyeY + this.tpsHeightOffset, this.position.z)
+        .addScaledVector(right, this.tpsSideOffset)
+        .addScaledVector(back, this.tpsDistance);
+    }
   }
 
   public respawnAt(x: number, y: number, z: number) {

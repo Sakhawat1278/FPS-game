@@ -97,7 +97,7 @@ export class WeaponHUD {
         <span class="slot-badge" id="slot-2-badge">[2] DESERT EAGLE</span>
       </div>
       <div style="font-size: 11px; color: #94a3b8; margin-top: 6px;">
-        1/2 Swap Slot · Q Swap Primary · R Reload · LMB Fire · RMB ADS
+        1/2 Swap Slot · Q Swap Primary · R Reload · V 1st/3rd POV · LMB Fire · RMB ADS
       </div>
     `;
     this.container.appendChild(card);

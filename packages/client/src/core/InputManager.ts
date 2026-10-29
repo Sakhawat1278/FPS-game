@@ -25,6 +25,7 @@ export class InputManager {
   public onSlot2?: () => void;
   public onSwapPrimary?: () => void;
   public onToggleZoom?: () => void;
+  public onTogglePerspective?: () => void;
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
@@ -100,6 +101,8 @@ export class InputManager {
         if (this.onSwapPrimary) this.onSwapPrimary();
       } else if (code === 'KeyZ') {
         if (this.onToggleZoom) this.onToggleZoom();
+      } else if (code === 'KeyV') {
+        if (this.onTogglePerspective) this.onTogglePerspective();
       }
     });
 
