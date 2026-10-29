@@ -33,6 +33,10 @@ export class RoomLobby {
             <button id="btn-copy-link" class="btn-sm btn-primary">Copy Invite Link</button>
             <button id="btn-lobby-settings" class="btn-sm">Settings</button>
           </div>
+          <div class="join-room-wrapper" style="margin-top: 10px; display: flex; gap: 8px; justify-content: center;">
+            <input id="input-join-code" type="text" placeholder="Enter Room Code" maxlength="6" style="padding: 6px 12px; background: #1f2937; border: 1px solid #4b5563; border-radius: 6px; color: #fff; font-weight: 700; text-transform: uppercase; width: 140px; text-align: center; font-size: 13px;" />
+            <button id="btn-join-custom-room" class="btn-sm">Join Room</button>
+          </div>
           <div id="copy-notice" style="display: none;" class="copy-notice">Copied to clipboard!</div>
         </div>
 
@@ -100,6 +104,23 @@ export class RoomLobby {
 
     document.getElementById('btn-lobby-settings')?.addEventListener('click', () => {
       if (this.onOpenSettings) this.onOpenSettings();
+    });
+
+    const btnJoinCustomRoom = document.getElementById('btn-join-custom-room');
+    const inputJoinCode = document.getElementById('input-join-code') as HTMLInputElement | null;
+
+    const performJoin = () => {
+      const targetCode = inputJoinCode?.value.trim().toUpperCase();
+      if (targetCode && targetCode.length >= 3) {
+        window.location.search = `?room=${targetCode}`;
+      } else {
+        this.showNotice('Please enter a valid room code!');
+      }
+    };
+
+    btnJoinCustomRoom?.addEventListener('click', performJoin);
+    inputJoinCode?.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') performJoin();
     });
   }
 

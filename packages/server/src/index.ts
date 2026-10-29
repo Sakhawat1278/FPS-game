@@ -87,8 +87,8 @@ const gameServer = new Server({
   })
 });
 
-// Register Warehouse room handler
-gameServer.define('warehouse_room', WarehouseRoom);
+// Register Warehouse room handler with roomCode filtering
+gameServer.define('warehouse_room', WarehouseRoom).filterBy(['roomCode']);
 
 server.listen(port, () => {
   console.log(`===============================================`);
