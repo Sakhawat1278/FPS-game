@@ -34,40 +34,40 @@ export interface MapData {
 }
 
 export const WAREHOUSE_MAP: MapData = {
-  id: 'hazmob_pvp',
-  name: 'Hazmob PvP Arena',
+  id: 'big_map_pvp',
+  name: 'Big Map PvP / PvE / FPS',
   dimensions: {
-    width: 34,
-    length: 30,
-    height: 8
+    width: 70,
+    length: 70,
+    height: 12
   },
   killY: -5,
   colliders: [
     // Outer perimeter boundary walls and ceiling to prevent physics escape
-    { id: 'boundary_west', x: -27.0, y: 4.0, z: 0, hx: 0.5, hy: 6.0, hz: 15.0, type: 'wall' },
-    { id: 'boundary_east', x: 6.5, y: 4.0, z: 0, hx: 0.5, hy: 6.0, hz: 15.0, type: 'wall' },
-    { id: 'boundary_north', x: -10.25, y: 4.0, z: -14.5, hx: 18.0, hy: 6.0, hz: 0.5, type: 'wall' },
-    { id: 'boundary_south', x: -10.25, y: 4.0, z: 14.5, hx: 18.0, hy: 6.0, hz: 0.5, type: 'wall' },
-    { id: 'boundary_ceiling', x: -10.25, y: 10.0, z: 0, hx: 18.0, hy: 0.5, hz: 15.0, type: 'ceiling' }
+    { id: 'boundary_south', x: 0, y: 5.0, z: -12.5, hx: 35.0, hy: 8.0, hz: 0.5, type: 'wall' },
+    { id: 'boundary_north', x: 0, y: 5.0, z: 55.5, hx: 35.0, hy: 8.0, hz: 0.5, type: 'wall' },
+    { id: 'boundary_west', x: -34.0, y: 5.0, z: 21.5, hx: 0.5, hy: 8.0, hz: 35.0, type: 'wall' },
+    { id: 'boundary_east', x: 34.0, y: 5.0, z: 21.5, hx: 0.5, hy: 8.0, hz: 35.0, type: 'wall' },
+    { id: 'boundary_ceiling', x: 0, y: 12.0, z: 21.5, hx: 35.0, hy: 0.5, hz: 35.0, type: 'ceiling' }
   ],
   spawns: [
-    // Alpha Spawns (West Yard, X ~ -21, facing East yaw = 0)
-    { id: 'alpha_spawn_1', team: 'alpha', x: -21.0, y: 1.0, z: -6.0, yaw: 0 },
-    { id: 'alpha_spawn_2', team: 'alpha', x: -21.0, y: 1.0, z: -3.0, yaw: 0 },
-    { id: 'alpha_spawn_3', team: 'alpha', x: -21.0, y: 1.0, z: 0.0, yaw: 0 },
-    { id: 'alpha_spawn_4', team: 'alpha', x: -21.0, y: 1.0, z: 3.0, yaw: 0 },
-    { id: 'alpha_spawn_5', team: 'alpha', x: -21.0, y: 1.0, z: 6.0, yaw: 0 },
+    // Alpha Spawns (South Yard / Blue Base, Z ~ 1.0, facing North yaw = 0)
+    { id: 'alpha_spawn_1', team: 'alpha', x: -8.0, y: 1.9, z: 1.0, yaw: 0 },
+    { id: 'alpha_spawn_2', team: 'alpha', x: -4.0, y: 1.9, z: 1.0, yaw: 0 },
+    { id: 'alpha_spawn_3', team: 'alpha', x: 0.0, y: 1.9, z: 1.0, yaw: 0 },
+    { id: 'alpha_spawn_4', team: 'alpha', x: 4.0, y: 1.9, z: 1.0, yaw: 0 },
+    { id: 'alpha_spawn_5', team: 'alpha', x: 8.0, y: 1.9, z: 1.0, yaw: 0 },
 
-    // Bravo Spawns (East Yard, X ~ 1.5, facing West yaw = Math.PI)
-    { id: 'bravo_spawn_1', team: 'bravo', x: 1.5, y: 1.0, z: -4.0, yaw: Math.PI },
-    { id: 'bravo_spawn_2', team: 'bravo', x: 1.5, y: 1.0, z: -2.0, yaw: Math.PI },
-    { id: 'bravo_spawn_3', team: 'bravo', x: 1.5, y: 1.0, z: 0.0, yaw: Math.PI },
-    { id: 'bravo_spawn_4', team: 'bravo', x: 1.5, y: 1.0, z: 2.0, yaw: Math.PI },
-    { id: 'bravo_spawn_5', team: 'bravo', x: 1.5, y: 1.0, z: 4.0, yaw: Math.PI },
+    // Bravo Spawns (North Yard / Red Base, Z ~ 41.0, facing South yaw = Math.PI)
+    { id: 'bravo_spawn_1', team: 'bravo', x: -8.0, y: 1.9, z: 41.0, yaw: Math.PI },
+    { id: 'bravo_spawn_2', team: 'bravo', x: -4.0, y: 1.9, z: 41.0, yaw: Math.PI },
+    { id: 'bravo_spawn_3', team: 'bravo', x: 0.0, y: 1.9, z: 41.0, yaw: Math.PI },
+    { id: 'bravo_spawn_4', team: 'bravo', x: 4.0, y: 1.9, z: 41.0, yaw: Math.PI },
+    { id: 'bravo_spawn_5', team: 'bravo', x: 8.0, y: 1.9, z: 41.0, yaw: Math.PI },
 
-    // Neutral Fallback Spawns
-    { id: 'neutral_spawn_1', team: 'neutral', x: -15.0, y: 1.0, z: -8.0, yaw: 0 },
-    { id: 'neutral_spawn_2', team: 'neutral', x: -5.0, y: 1.0, z: 8.0, yaw: Math.PI },
-    { id: 'neutral_spawn_3', team: 'neutral', x: -10.0, y: 1.0, z: 0.0, yaw: 0 }
+    // Neutral Fallback Spawns (Midfield flanks & center)
+    { id: 'neutral_spawn_1', team: 'neutral', x: -15.0, y: 1.9, z: 21.5, yaw: 0 },
+    { id: 'neutral_spawn_2', team: 'neutral', x: 15.0, y: 1.9, z: 21.5, yaw: Math.PI },
+    { id: 'neutral_spawn_3', team: 'neutral', x: 0.0, y: 1.9, z: 21.5, yaw: 0 }
   ]
 };
