@@ -25,6 +25,10 @@ export class AudioEngine {
   private activeVoicesCount: number = 0;
   private maxVoices: number = 32;
 
+  // Real Audio Samples Cache
+  private audioBuffers: Map<string, AudioBuffer> = new Map();
+  private pendingPreloads: Map<string, Promise<ArrayBuffer>> = new Map();
+
   // Settings
   public settings: SoundSettings = {
     masterVolume: 1.0,
@@ -34,6 +38,9 @@ export class AudioEngine {
   };
 
   constructor() {
+    // Pre-fetch realistic audio files immediately so they are cached in RAM
+    this.preloadAudio('m416_fire', '/audio/m416_fire.mp3');
+
     const unlock = () => {
       this.initContext();
       window.removeEventListener('click', unlock);
@@ -41,6 +48,37 @@ export class AudioEngine {
     };
     window.addEventListener('click', unlock);
     window.addEventListener('keydown', unlock);
+  }
+
+  public preloadAudio(key: string, url: string) {
+    if (typeof window === 'undefined' || typeof fetch === 'undefined') return;
+    const promise = fetch(url)
+      .then((res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.arrayBuffer();
+      })
+      .catch((err) => {
+        console.warn(`[AudioEngine] Could not pre-fetch ${url}:`, err);
+        return new ArrayBuffer(0);
+      });
+    this.pendingPreloads.set(key, promise);
+  }
+
+  private async decodePreloadedAudio() {
+    if (!this.ctx) return;
+    for (const [key, promise] of this.pendingPreloads.entries()) {
+      if (this.audioBuffers.has(key)) continue;
+      try {
+        const arrayBuf = await promise;
+        if (arrayBuf.byteLength > 0) {
+          const audioBuf = await this.ctx.decodeAudioData(arrayBuf.slice(0));
+          this.audioBuffers.set(key, audioBuf);
+          console.log(`[AudioEngine] Successfully cached authentic audio: "${key}"`);
+        }
+      } catch (err) {
+        console.warn(`[AudioEngine] Failed to decode audio "${key}":`, err);
+      }
+    }
   }
 
   private initContext() {
@@ -78,6 +116,9 @@ export class AudioEngine {
     this.reverbGain.gain.setValueAtTime(0.35, this.ctx.currentTime); // 35% wet reverb
     this.reverbNode.connect(this.reverbGain);
     this.reverbGain.connect(this.masterGain);
+
+    // Decode preloaded authentic samples
+    this.decodePreloadedAudio();
   }
 
   private buildWarehouseImpulse(duration: number, decay: number): AudioBuffer {
@@ -166,6 +207,24 @@ export class AudioEngine {
     if (!this.ctx || !this.isUnlocked) return;
     const t = this.ctx.currentTime;
 
+    const sample = this.audioBuffers.get('m416_fire');
+    if (sample) {
+      // Play authentic recorded gunshot with dynamic pitch variance for organic firing feel
+      const source = this.ctx.createBufferSource();
+      source.buffer = sample;
+      source.playbackRate.setValueAtTime(0.97 + Math.random() * 0.06, t);
+
+      const gain = this.ctx.createGain();
+      gain.gain.setValueAtTime(0.95, t);
+
+      source.connect(gain);
+      gain.connect(this.sfxGain);
+      gain.connect(this.reverbNode);
+      source.start(t);
+      return;
+    }
+
+    // Procedural fallback
     const bufferSize = this.ctx.sampleRate * 0.12;
     const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
     const data = buffer.getChannelData(0);
@@ -516,6 +575,21 @@ export class AudioEngine {
     if (!this.ctx || !this.isUnlocked) return;
     const t = this.ctx.currentTime;
     const { filter } = this.createPanner(pos, isOccluded);
+
+    if (weaponId === 'm416' && this.audioBuffers.has('m416_fire')) {
+      const source = this.ctx.createBufferSource();
+      source.buffer = this.audioBuffers.get('m416_fire')!;
+      source.playbackRate.setValueAtTime(0.97 + Math.random() * 0.06, t);
+
+      const gain = this.ctx.createGain();
+      gain.gain.setValueAtTime(0.85, t);
+
+      source.connect(gain);
+      gain.connect(filter);
+      gain.connect(this.reverbNode);
+      source.start(t);
+      return;
+    }
 
     const bufferSize = this.ctx.sampleRate * 0.35;
     const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
