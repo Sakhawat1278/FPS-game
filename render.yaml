@@ -23,3 +23,4 @@ services:
       name: warehouse-data
       mountPath: /var/data
       sizeGB: 1
+

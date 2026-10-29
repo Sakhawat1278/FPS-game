@@ -18,18 +18,18 @@ export class PostprocessingManager {
   constructor(renderer: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.PerspectiveCamera) {
     this.renderer = renderer;
 
-    // ACES Filmic Tone Mapping (Believable realistic lighting)
+    // ACES Filmic Tone Mapping (Bright sunlit exposure)
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.15;
+    this.renderer.toneMappingExposure = 1.35;
 
     // Setup Effect Composer
     this.composer = new EffectComposer(this.renderer);
     this.renderPass = new RenderPass(scene, camera);
     this.composer.addPass(this.renderPass);
 
-    // Subtle bloom for lights, skylights, and muzzle flashes
+    // Subtle bloom for sunrise glow, skylights, and muzzle flashes
     const resolution = new THREE.Vector2(window.innerWidth, window.innerHeight);
-    this.bloomPass = new UnrealBloomPass(resolution, 0.5, 0.4, 0.78);
+    this.bloomPass = new UnrealBloomPass(resolution, 0.45, 0.4, 0.80);
     this.composer.addPass(this.bloomPass);
 
     this.applyPreset('high');

@@ -52,3 +52,4 @@ describe('AntiCheat Security Verification', () => {
     expect(ac.checkMessageRateLimit(clientId, now + 1001)).toBe(true);
   });
 });
+

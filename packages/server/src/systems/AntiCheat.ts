@@ -63,3 +63,4 @@ export class AntiCheat {
 }
 
 export const antiCheat = new AntiCheat();
+

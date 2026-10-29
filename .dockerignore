@@ -7,3 +7,4 @@ packages/*/dist
 data
 tmp
 *.log
+

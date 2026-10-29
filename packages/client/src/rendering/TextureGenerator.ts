@@ -9,8 +9,8 @@ export class TextureGenerator {
     canvas.height = size;
     const ctx = canvas.getContext('2d')!;
 
-    // Base concrete tone
-    ctx.fillStyle = '#262d38';
+    // Base concrete tone - Bright realistic sunlit concrete
+    ctx.fillStyle = '#8f9aa6';
     ctx.fillRect(0, 0, size, size);
 
     // Subtle noise & speckles
@@ -25,7 +25,7 @@ export class TextureGenerator {
     ctx.putImageData(imgData, 0, 0);
 
     // Concrete expansion joints grid
-    ctx.strokeStyle = '#161b22';
+    ctx.strokeStyle = '#64748b';
     ctx.lineWidth = 4;
     ctx.strokeRect(2, 2, size - 4, size - 4);
     ctx.beginPath();
@@ -211,6 +211,84 @@ export class TextureGenerator {
     ctx.fillText(sub, 256, 96);
 
     return new THREE.CanvasTexture(canvas);
+  }
+
+  // Procedural 360-degree Sunrise Sky with Rising Sun & Atmospheric Horizon
+  public static createSunriseSky(): THREE.CanvasTexture {
+    const width = 1024;
+    const height = 512;
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d')!;
+
+    // 1. Sky Gradient: Deep Morning Blue at zenith to fiery sunrise glow at horizon
+    const skyGrad = ctx.createLinearGradient(0, 0, 0, height);
+    skyGrad.addColorStop(0.0, '#1d4ed8'); // Zenith crisp blue
+    skyGrad.addColorStop(0.35, '#38bdf8'); // Upper daylight blue
+    skyGrad.addColorStop(0.58, '#f472b6'); // Sunrise morning rose
+    skyGrad.addColorStop(0.75, '#fb923c'); // Warm radiant orange
+    skyGrad.addColorStop(0.88, '#f59e0b'); // Golden horizon
+    skyGrad.addColorStop(1.0, '#78350f'); // Distant earth
+    ctx.fillStyle = skyGrad;
+    ctx.fillRect(0, 0, width, height);
+
+    // 2. Radiant Rising Sun (positioned at x = 650, y = 390 - sunrise elevation)
+    const sunX = 650;
+    const sunY = 385;
+
+    // Wide atmospheric golden flare
+    const coronaGrad = ctx.createRadialGradient(sunX, sunY, 10, sunX, sunY, 260);
+    coronaGrad.addColorStop(0, 'rgba(255, 254, 235, 0.95)');
+    coronaGrad.addColorStop(0.15, 'rgba(254, 240, 138, 0.85)');
+    coronaGrad.addColorStop(0.4, 'rgba(251, 146, 60, 0.45)');
+    coronaGrad.addColorStop(0.7, 'rgba(244, 114, 182, 0.2)');
+    coronaGrad.addColorStop(1.0, 'rgba(244, 114, 182, 0)');
+    ctx.fillStyle = coronaGrad;
+    ctx.beginPath();
+    ctx.arc(sunX, sunY, 260, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Blazing Core Sun Disc
+    const sunDisc = ctx.createRadialGradient(sunX, sunY, 0, sunX, sunY, 32);
+    sunDisc.addColorStop(0, '#ffffff');
+    sunDisc.addColorStop(0.7, '#fffbeb');
+    sunDisc.addColorStop(1.0, '#fde047');
+    ctx.fillStyle = sunDisc;
+    ctx.beginPath();
+    ctx.arc(sunX, sunY, 32, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 3. Gentle Distant Mountain & Harbor Silhouette along the horizon
+    ctx.fillStyle = '#451a03'; // Warm silhouette
+    ctx.beginPath();
+    ctx.moveTo(0, height);
+    ctx.lineTo(0, 440);
+    for (let x = 0; x <= width; x += 30) {
+      const y = 435 + Math.sin(x * 0.02) * 12 + Math.cos(x * 0.05) * 8;
+      ctx.lineTo(x, y);
+    }
+    ctx.lineTo(width, height);
+    ctx.closePath();
+    ctx.fill();
+
+    // 4. Distant industrial cranes / gantries on horizon
+    ctx.strokeStyle = 'rgba(69, 26, 3, 0.7)';
+    ctx.lineWidth = 2;
+    for (const cx of [180, 320, 820, 920]) {
+      ctx.beginPath();
+      ctx.moveTo(cx, 440);
+      ctx.lineTo(cx, 400);
+      ctx.lineTo(cx + 40, 395);
+      ctx.moveTo(cx, 405);
+      ctx.lineTo(cx - 20, 410);
+      ctx.stroke();
+    }
+
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.wrapS = THREE.RepeatWrapping;
+    tex.wrapT = THREE.ClampToEdgeWrapping;
+    return tex;
   }
 }
 

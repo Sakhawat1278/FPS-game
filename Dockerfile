@@ -63,3 +63,4 @@ HEALTHCHECK --interval=20s --timeout=3s --start-period=5s --retries=3 \
 
 # Start game server
 CMD ["node", "packages/server/dist/index.js"]
+
