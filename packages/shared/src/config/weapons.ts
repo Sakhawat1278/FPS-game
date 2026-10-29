@@ -46,6 +46,7 @@ export interface WeaponData {
   recoil: WeaponRecoilConfig;
   spread: WeaponSpreadConfig;
   tracerInterval: number; // e.g. 3 for M416 (every 3rd round)
+  sprintToFireTime?: number; // seconds to shift from sprint to fire (e.g. 0.20s)
   scopeGlint?: boolean;
   notes?: string;
 }
@@ -86,7 +87,8 @@ export const WEAPONS: Record<WeaponId, WeaponData> = {
       scopeSwayAmount: 0.002,
       crouchSwayMultiplier: 0.5
     },
-    tracerInterval: 3
+    tracerInterval: 3,
+    sprintToFireTime: 0.20
   },
   operator: {
     id: 'operator',
@@ -126,6 +128,7 @@ export const WEAPONS: Record<WeaponId, WeaponData> = {
       crouchSwayMultiplier: 0.4
     },
     tracerInterval: 1,
+    sprintToFireTime: 0.35,
     scopeGlint: true,
     notes: 'One shot = one kill on any body hit.'
   },
@@ -164,7 +167,8 @@ export const WEAPONS: Record<WeaponId, WeaponData> = {
       scopeSwayAmount: 0.003,
       crouchSwayMultiplier: 0.6
     },
-    tracerInterval: 1
+    tracerInterval: 1,
+    sprintToFireTime: 0.15
   }
 };
 

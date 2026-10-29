@@ -44,7 +44,7 @@ export class VFXManager {
     });
     this.tracerGeometry = new THREE.BufferGeometry().setFromPoints([
       new THREE.Vector3(0, 0, 0),
-      new THREE.Vector3(0, 0, -2.5) // 2.5m long tracer slug
+      new THREE.Vector3(0, 0, 1.2) // 1.2m long tracer slug pointing forward along +Z towards target
     ]);
 
     // Impact sparks/dust
@@ -55,27 +55,29 @@ export class VFXManager {
       opacity: 0.9
     });
 
-    // Muzzle light (tight radius and subtle intensity for natural flash)
-    this.muzzleLight = new THREE.PointLight(0xfef08a, 0, 3.5);
+    // Muzzle light (tight radius and subtle intensity for natural flash without blinding glare)
+    this.muzzleLight = new THREE.PointLight(0xfef08a, 0, 2.2);
     this.scene.add(this.muzzleLight);
   }
 
   public triggerMuzzleFlash(position: THREE.Vector3) {
     this.muzzleLight.position.copy(position);
-    this.muzzleLight.intensity = 1.2;
+    this.muzzleLight.intensity = 0.6;
     this.muzzleFlashTimer = 0.03; // 30ms snappy flash
   }
 
   public spawnTracer(start: THREE.Vector3, target: THREE.Vector3) {
+    const dir = target.clone().sub(start).normalize();
+    const spawnPos = start.clone().addScaledVector(dir, 0.35); // Offset forward from muzzle to prevent camera near clipping
     const line = this.tracerPool.pop() || new THREE.Line(this.tracerGeometry, this.tracerMaterial);
-    line.position.copy(start);
+    line.position.copy(spawnPos);
     line.lookAt(target);
     if (!line.parent) this.scene.add(line);
     line.visible = true;
 
     this.activeTracers.push({
       line,
-      start: start.clone(),
+      start: spawnPos,
       target: target.clone(),
       progress: 0,
       speed: 160 // 160 m/s visual tracer travel

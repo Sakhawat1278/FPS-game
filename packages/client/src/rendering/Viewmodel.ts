@@ -21,14 +21,15 @@ export class Viewmodel {
   private lastPitch: number = 0;
   private currentSwayX: number = 0;
   private currentSwayY: number = 0;
+  private currentSprintWeight: number = 0;
 
   // Offsets
   private defaultHipPosition = new THREE.Vector3(0.22, -0.20, -0.42);
   private defaultAdsPosition = new THREE.Vector3(0.0, -0.145, -0.32);
   private m4HipPosition = new THREE.Vector3(0.0, 0.0, 0.0);
-  private m4AdsPosition = new THREE.Vector3(-0.0711, 0.0014, -0.06);
+  private m4AdsPosition = new THREE.Vector3(-0.0665, 0.0301, 0.03);
   private m4HipRotation = new THREE.Vector3(0.0, 0.0, 0.0);
-  private m4AdsRotation = new THREE.Vector3(0.0, 0.0, 0.0);
+  private m4AdsRotation = new THREE.Vector3(-0.0354, 0.0022, 0.0);
   private currentBasePos = new THREE.Vector3().copy(this.m4HipPosition);
   private currentBaseRot = new THREE.Vector3();
 
@@ -37,14 +38,17 @@ export class Viewmodel {
     this.group = new THREE.Group();
     this.camera.add(this.group);
 
-    // Dedicated camera-local lighting for viewmodel (tightly bounded radius so it never floods the arena)
-    const keyLight = new THREE.PointLight(0xfff7ed, 2.0, 1.8, 2.0);
-    keyLight.position.set(0.18, 0.40, 0.05);
-    this.camera.add(keyLight);
+    // Dedicated camera-local studio lighting for viewmodel with parallel rays (no distance blowouts or blinding glare)
+    const vmDirLight = new THREE.DirectionalLight(0xfff7ed, 1.2);
+    vmDirLight.position.set(0.4, 0.6, 0.3);
+    this.camera.add(vmDirLight);
 
-    const fillLight = new THREE.PointLight(0xdbeafe, 1.4, 1.8, 2.0);
-    fillLight.position.set(-0.35, 0.25, -0.35);
-    this.camera.add(fillLight);
+    const vmFillLight = new THREE.DirectionalLight(0xdbeafe, 0.6);
+    vmFillLight.position.set(-0.5, -0.2, 0.2);
+    this.camera.add(vmFillLight);
+
+    const vmAmbient = new THREE.AmbientLight(0xffffff, 0.35);
+    this.camera.add(vmAmbient);
 
     // Build models for all three weapons
     this.weapons = {
@@ -104,38 +108,41 @@ export class Viewmodel {
             child.receiveShadow = false;
             child.frustumCulled = false; // Prevent skinned mesh from disappearing during ADS
             const mesh = child as THREE.Mesh;
-            const mat = mesh.material as THREE.MeshStandardMaterial;
-            if (mat) {
-              mat.depthWrite = true;
-              mat.depthTest = true;
-              if (mat.name.includes('M4')) {
-                mat.roughness = 0.42;
-                mat.metalness = 0.35;
-                mat.envMapIntensity = 1.0;
-              } else if (mat.name.includes('Glove')) {
-                mat.roughness = 0.75;
-                mat.metalness = 0.05;
-                mat.envMapIntensity = 0.5;
-              } else if (mat.name.includes('Hand')) {
-                mat.roughness = 0.82;
-                mat.metalness = 0.0;
-                mat.envMapIntensity = 0.3;
-              } else if (mat.name.includes('Bullet')) {
-                mat.roughness = 0.30;
-                mat.metalness = 0.85;
-                mat.envMapIntensity = 1.2;
+            const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+            for (const mat of materials) {
+              if (mat && (mat as THREE.MeshStandardMaterial).isMeshStandardMaterial) {
+                const stdMat = mat as THREE.MeshStandardMaterial;
+                stdMat.depthWrite = true;
+                stdMat.depthTest = true;
+                if (stdMat.name.includes('M4')) {
+                  stdMat.roughness = 0.40;
+                  stdMat.metalness = 0.45;
+                  stdMat.envMapIntensity = 0.9;
+                } else if (stdMat.name.includes('Glove')) {
+                  stdMat.roughness = 0.72;
+                  stdMat.metalness = 0.05;
+                  stdMat.envMapIntensity = 0.4;
+                } else if (stdMat.name.includes('Hand')) {
+                  stdMat.roughness = 0.78;
+                  stdMat.metalness = 0.0;
+                  stdMat.envMapIntensity = 0.25;
+                } else if (stdMat.name.includes('Bullet')) {
+                  stdMat.roughness = 0.28;
+                  stdMat.metalness = 0.85;
+                  stdMat.envMapIntensity = 1.0;
+                }
+                if (stdMat.map) {
+                  stdMat.map.colorSpace = THREE.SRGBColorSpace;
+                  stdMat.map.anisotropy = 8;
+                  stdMat.map.needsUpdate = true;
+                }
+                if (stdMat.normalMap) {
+                  stdMat.normalMap.anisotropy = 8;
+                  stdMat.normalScale.set(1.0, 1.0);
+                  stdMat.normalMap.needsUpdate = true;
+                }
+                stdMat.needsUpdate = true;
               }
-              if (mat.map) {
-                mat.map.colorSpace = THREE.SRGBColorSpace;
-                mat.map.anisotropy = 8;
-                mat.map.needsUpdate = true;
-              }
-              if (mat.normalMap) {
-                mat.normalMap.anisotropy = 8;
-                mat.normalScale.set(1.0, 1.0);
-                mat.normalMap.needsUpdate = true;
-              }
-              mat.needsUpdate = true;
             }
           }
         });
@@ -425,8 +432,12 @@ export class Viewmodel {
     this.currentBasePos.lerp(targetPos, Math.min(1.0, 14.0 * dt));
     this.currentBaseRot.lerp(targetRot, Math.min(1.0, 14.0 * dt));
 
-    const sprintLowerY = isSprinting ? -0.09 : 0;
-    const sprintRotateZ = isSprinting ? -0.35 : 0;
+    // Smooth sprint-to-fire posture shift (smoothly raises weapon up when transitioning to walk/fire)
+    const targetSprintWeight = isSprinting && !isAiming ? 1.0 : 0.0;
+    this.currentSprintWeight += (targetSprintWeight - this.currentSprintWeight) * Math.min(1.0, 10.0 * dt);
+
+    const sprintLowerY = -0.09 * this.currentSprintWeight;
+    const sprintRotateZ = -0.35 * this.currentSprintWeight;
 
     // Dampen sway in ADS for rock-solid iron sight aiming
     const swayDamp = isAiming ? 0.35 : 1.0;

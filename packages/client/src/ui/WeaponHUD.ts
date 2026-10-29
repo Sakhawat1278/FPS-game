@@ -180,6 +180,7 @@ export class WeaponHUD {
 
     // 3. Dynamic Crosshair spread expansion
     const isOperatorScoped = weapon.id === 'operator' && wm.isAiming;
+    const isAimingDownSights = wm.isAiming;
 
     if (isOperatorScoped) {
       if (this.crosshairEl) this.crosshairEl.style.display = 'none';
@@ -193,7 +194,8 @@ export class WeaponHUD {
     } else {
       if (this.scopeOverlayEl) this.scopeOverlayEl.style.display = 'none';
       if (this.crosshairEl) {
-        this.crosshairEl.style.display = 'flex';
+        // Hide crosshair reticle when aiming down iron sights for authentic tactical sightline
+        this.crosshairEl.style.display = isAimingDownSights ? 'none' : 'flex';
         const chSettings = settingsManager.current.crosshair;
 
         // Apply custom crosshair color, size, thickness

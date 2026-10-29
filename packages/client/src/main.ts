@@ -270,10 +270,10 @@ async function bootstrap() {
 
     const input = inputManager.sampleInput(clientTick);
 
-    // Firing Logic (Zero-allocation aim direction)
+    // Firing Logic (Sprint-to-fire shift and firing)
     if (input.isShooting && inputManager.isLocked && networkController.isLocalAlive && !pauseMenu.isVisible) {
-      // Shooting while running immediately breaks sprint into auto-walk
-      if (charController.isSprinting) {
+      // Shooting while running initiates sprint-to-fire shift and auto-walk
+      if (charController.isSprinting && !weaponManager.isSprintTransitioning) {
         charController.isSprinting = false;
         input.isSprinting = false;
       }
@@ -283,6 +283,12 @@ async function bootstrap() {
         networkController.sendFireIntent(weaponManager.activeWeapon.id, camera.position, _aimDir);
         viewmodel.playFire();
       }
+    }
+
+    // While shifting from sprint to fire, force player to auto-walk
+    if (weaponManager.isSprintTransitioning) {
+      charController.isSprinting = false;
+      input.isSprinting = false;
     }
 
     // Recoil
@@ -297,11 +303,13 @@ async function bootstrap() {
     networkController.sendInput(input);
     rapierWorld.step();
 
+    const effectiveSprinting = charController.isSprinting && !weaponManager.isSprintTransitioning;
+
     weaponManager.update(
       dt,
       input.isAiming,
       charController.isCrouched,
-      charController.isSprinting,
+      effectiveSprinting,
       charController.horizontalSpeed,
       dummies
     );
@@ -313,7 +321,7 @@ async function bootstrap() {
       charController.isGrounded,
       input.yaw,
       input.pitch,
-      charController.isSprinting,
+      effectiveSprinting,
       weaponManager.isAiming,
       weaponManager.recoilSystem.viewmodelKickZ,
       weaponManager.recoilSystem.viewmodelKickPitch

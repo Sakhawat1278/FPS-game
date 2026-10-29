@@ -30,6 +30,10 @@ export class WeaponManager {
   private boltTimer: number = 0;
   private shotCount: number = 0;
 
+  // Sprint-to-fire transition state
+  public isSprintTransitioning: boolean = false;
+  public sprintRecoveryTimer: number = 0;
+
   // ADS state
   public isAiming: boolean = false;
   public operatorZoomIndex: number = 0; // 0 for 4x, 1 for 8x
@@ -61,6 +65,8 @@ export class WeaponManager {
     this.activeSlot = slot;
     this.isAiming = false;
     this.isCyclingBolt = false;
+    this.isSprintTransitioning = false;
+    this.sprintRecoveryTimer = 0;
     this.audio.playDryFire();
     console.log(`[WeaponManager] Switched to ${this.activeWeapon.name}`);
   }
@@ -87,9 +93,22 @@ export class WeaponManager {
   ): boolean {
     if (this.isReloading || this.isCyclingBolt) return false;
 
-    // Firing while running immediately drops sprint to walk (auto-walk and fire)
     const weapon = this.activeWeapon;
     const ammo = this.activeAmmo;
+
+    // Smooth sprint-to-fire shift: if sprinting, initiate sprint recovery delay (~0.20s) and walk
+    if (isSprinting && !this.isSprintTransitioning) {
+      this.isSprintTransitioning = true;
+      this.sprintRecoveryTimer = weapon.sprintToFireTime || 0.20;
+      return false;
+    }
+
+    if (this.isSprintTransitioning) {
+      if (this.sprintRecoveryTimer > 0) {
+        return false; // Still shifting up from sprint to fire
+      }
+      this.isSprintTransitioning = false;
+    }
 
     // Check fire rate cooldown
     if (now - this.lastFireTime < weapon.fireInterval * 1000) {
@@ -245,6 +264,15 @@ export class WeaponManager {
   ) {
     const weapon = this.activeWeapon;
     const ammo = this.activeAmmo;
+
+    // 0. Handle Sprint-to-Fire Transition Timer
+    if (this.isSprintTransitioning) {
+      this.sprintRecoveryTimer -= dt;
+      if (this.sprintRecoveryTimer <= 0) {
+        this.sprintRecoveryTimer = 0;
+        this.isSprintTransitioning = false;
+      }
+    }
 
     // 1. Handle Reload Progress
     if (this.isReloading) {
