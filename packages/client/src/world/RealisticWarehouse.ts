@@ -73,13 +73,35 @@ export class RealisticWarehouse {
               mesh.castShadow = true;
               mesh.receiveShadow = true;
 
-              // Tune materials to a clean matte finish (no blinding mirror reflections)
-              const mat = mesh.material as THREE.MeshStandardMaterial;
-              if (mat) {
-                mat.roughness = 0.76;
-                mat.metalness = 0.15;
-                mat.envMapIntensity = 0.35;
-                mat.needsUpdate = true;
+              // The arena ground floor is the 'Plane' mesh
+              if (mesh.name === 'Plane' || child.name === 'Plane') {
+                const grassPBR = TextureGenerator.createGrass();
+                grassPBR.map.repeat.set(28, 28);
+                grassPBR.normalMap.repeat.set(28, 28);
+                grassPBR.roughnessMap.repeat.set(28, 28);
+
+                const grassMat = new THREE.MeshStandardMaterial({
+                  map: grassPBR.map,
+                  normalMap: grassPBR.normalMap,
+                  normalScale: new THREE.Vector2(1.2, 1.2),
+                  roughnessMap: grassPBR.roughnessMap,
+                  roughness: 0.88,
+                  metalness: 0.02,
+                  envMapIntensity: 0.25,
+                  color: 0xffffff
+                });
+                mesh.material = grassMat;
+                mesh.receiveShadow = true;
+                mesh.castShadow = false;
+              } else {
+                // Tune materials to a clean matte finish (no blinding mirror reflections)
+                const mat = mesh.material as THREE.MeshStandardMaterial;
+                if (mat) {
+                  mat.roughness = 0.76;
+                  mat.metalness = 0.15;
+                  mat.envMapIntensity = 0.35;
+                  mat.needsUpdate = true;
+                }
               }
             }
           });
@@ -119,8 +141,8 @@ export class RealisticWarehouse {
     const ambient = new THREE.AmbientLight(0xffedd5, 0.55);
     this.scene.add(ambient);
 
-    // 2. Clear morning sky dome fill (cool blue sky above, warm terrain bounce below)
-    const hemiLight = new THREE.HemisphereLight(0x7dd3fc, 0x78350f, 0.45);
+    // 2. Clear morning sky dome fill (cool blue sky above, lush green grass bounce below)
+    const hemiLight = new THREE.HemisphereLight(0x7dd3fc, 0x2d5a1b, 0.45);
     hemiLight.position.set(0, 50, 21.5);
     this.scene.add(hemiLight);
 

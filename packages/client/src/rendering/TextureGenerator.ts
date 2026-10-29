@@ -65,6 +65,144 @@ export class TextureGenerator {
     return { map, roughnessMap };
   }
 
+  // Lush Tactical Battlefield Grass & Turf PBR Texture set (Diffuse, Tangent Normal, Roughness)
+  public static createGrass(): { map: THREE.CanvasTexture; normalMap: THREE.CanvasTexture; roughnessMap: THREE.CanvasTexture } {
+    const size = 512;
+    const canvas = document.createElement('canvas');
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext('2d')!;
+
+    // 1. Base Soil / Earth Underlay (Rich dark organic loam)
+    ctx.fillStyle = '#2d4a1d';
+    ctx.fillRect(0, 0, size, size);
+
+    // Patchy organic lawn variation (sunlit vs cooler shadowed patches)
+    for (let i = 0; i < 40; i++) {
+      const px = Math.random() * size;
+      const py = Math.random() * size;
+      const pr = 40 + Math.random() * 80;
+      const patchGrad = ctx.createRadialGradient(px, py, 5, px, py, pr);
+      const isSunlit = Math.random() > 0.5;
+      patchGrad.addColorStop(0, isSunlit ? 'rgba(74, 122, 38, 0.45)' : 'rgba(32, 58, 20, 0.55)');
+      patchGrad.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = patchGrad;
+      ctx.beginPath();
+      ctx.arc(px, py, pr, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // 2. High-Density Individual Grass Blades & Tufts
+    // Blade palette: deep roots, rich mid blades, sunlit tips, subtle thatch
+    const bladeColors = [
+      '#244015', '#2c4f1a', '#365e1f', '#417326', '#4d872c', '#5a9c33', '#6bb33d', '#3f5724', '#78a83b'
+    ];
+
+    const bladeCount = 18000;
+    for (let i = 0; i < bladeCount; i++) {
+      const bx = Math.random() * size;
+      const by = Math.random() * size;
+      const bladeLen = 6 + Math.random() * 10;
+      const bladeAngle = -Math.PI / 2 + (Math.random() - 0.5) * 0.9; // Pointing upwards with natural tilt
+      const color = bladeColors[Math.floor(Math.random() * bladeColors.length)];
+
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 1 + Math.random() * 1.5;
+      ctx.beginPath();
+      ctx.moveTo(bx, by);
+      // Curved blade arc
+      const cx = bx + Math.cos(bladeAngle) * (bladeLen * 0.5) + (Math.random() - 0.5) * 2;
+      const cy = by + Math.sin(bladeAngle) * (bladeLen * 0.5);
+      const ex = bx + Math.cos(bladeAngle) * bladeLen;
+      const ey = by + Math.sin(bladeAngle) * bladeLen;
+      ctx.quadraticCurveTo(cx, cy, ex, ey);
+      ctx.stroke();
+    }
+
+    // 3. Subtle clover & organic ground specks
+    for (let i = 0; i < 350; i++) {
+      const cx = Math.random() * size;
+      const cy = Math.random() * size;
+      ctx.fillStyle = Math.random() > 0.3 ? '#5c9930' : '#45381d';
+      ctx.beginPath();
+      ctx.arc(cx, cy, 1.2 + Math.random() * 1.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    const map = new THREE.CanvasTexture(canvas);
+    map.wrapS = THREE.RepeatWrapping;
+    map.wrapT = THREE.RepeatWrapping;
+    map.colorSpace = THREE.SRGBColorSpace;
+    map.anisotropy = 8;
+
+    // 4. Tangent-Space Normal Map (generates 3D relief for blades catching sun angles)
+    const nCanvas = document.createElement('canvas');
+    nCanvas.width = size;
+    nCanvas.height = size;
+    const nCtx = nCanvas.getContext('2d')!;
+    nCtx.fillStyle = '#8080ff'; // Flat tangent normal (128, 128, 255)
+    nCtx.fillRect(0, 0, size, size);
+
+    const nImgData = nCtx.getImageData(0, 0, size, size);
+    const nData = nImgData.data;
+
+    // Sample diffuse luminance gradients to generate authentic normal perturbations
+    const diffData = ctx.getImageData(0, 0, size, size).data;
+    for (let y = 1; y < size - 1; y++) {
+      for (let x = 1; x < size - 1; x++) {
+        const idx = (y * size + x) * 4;
+        const leftIdx = (y * size + (x - 1)) * 4;
+        const rightIdx = (y * size + (x + 1)) * 4;
+        const upIdx = ((y - 1) * size + x) * 4;
+        const downIdx = ((y + 1) * size + x) * 4;
+
+        // Luminance approximation
+        const lumL = diffData[leftIdx] * 0.299 + diffData[leftIdx + 1] * 0.587 + diffData[leftIdx + 2] * 0.114;
+        const lumR = diffData[rightIdx] * 0.299 + diffData[rightIdx + 1] * 0.587 + diffData[rightIdx + 2] * 0.114;
+        const lumU = diffData[upIdx] * 0.299 + diffData[upIdx + 1] * 0.587 + diffData[upIdx + 2] * 0.114;
+        const lumD = diffData[downIdx] * 0.299 + diffData[downIdx + 1] * 0.587 + diffData[downIdx + 2] * 0.114;
+
+        const dx = (lumL - lumR) * 0.8;
+        const dy = (lumU - lumD) * 0.8;
+
+        nData[idx] = Math.max(0, Math.min(255, 128 + dx));
+        nData[idx + 1] = Math.max(0, Math.min(255, 128 + dy));
+        nData[idx + 2] = 255;
+      }
+    }
+    nCtx.putImageData(nImgData, 0, 0);
+
+    const normalMap = new THREE.CanvasTexture(nCanvas);
+    normalMap.wrapS = THREE.RepeatWrapping;
+    normalMap.wrapT = THREE.RepeatWrapping;
+    normalMap.anisotropy = 8;
+
+    // 5. Roughness Map (Matte organic turf, high roughness 0.84 - 0.96)
+    const rCanvas = document.createElement('canvas');
+    rCanvas.width = size;
+    rCanvas.height = size;
+    const rCtx = rCanvas.getContext('2d')!;
+    rCtx.fillStyle = '#dedede'; // Highly matte
+    rCtx.fillRect(0, 0, size, size);
+
+    const rImgData = rCtx.getImageData(0, 0, size, size);
+    const rData = rImgData.data;
+    for (let i = 0; i < rData.length; i += 4) {
+      const n = (Math.random() - 0.5) * 20;
+      const v = Math.max(210, Math.min(250, 225 + n));
+      rData[i] = v;
+      rData[i + 1] = v;
+      rData[i + 2] = v;
+    }
+    rCtx.putImageData(rImgData, 0, 0);
+
+    const roughnessMap = new THREE.CanvasTexture(rCanvas);
+    roughnessMap.wrapS = THREE.RepeatWrapping;
+    roughnessMap.wrapT = THREE.RepeatWrapping;
+
+    return { map, normalMap, roughnessMap };
+  }
+
   // Corrugated Metal (for Shipping Containers & Roll-up doors)
   public static createCorrugatedMetal(baseColor: string): THREE.CanvasTexture {
     const size = 256;
