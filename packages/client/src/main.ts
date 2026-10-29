@@ -1,146 +1,146 @@
 import * as THREE from 'three';
+import RAPIER from '@dimforge/rapier3d-compat';
 import { Client, Room } from 'colyseus.js';
-import { WEAPONS, MATCH_RULES, WarehouseRoomState } from '@warehouse-strike/shared';
+import { WarehouseRoomState, WAREHOUSE_MAP } from '@warehouse-strike/shared';
+import { InputManager } from './core/InputManager';
+import { WarehouseWorld } from './world/WarehouseWorld';
+import { CharacterController } from './core/CharacterController';
+import { Viewmodel } from './rendering/Viewmodel';
+import { DebugOverlay } from './ui/DebugOverlay';
 
-// Verify shared package imports
-console.log('[Warehouse Strike] Loaded shared config:', {
-  weapons: Object.keys(WEAPONS),
-  matchRules: MATCH_RULES
-});
+async function bootstrap() {
+  console.log('[Warehouse Strike] Initializing Rapier WASM physics...');
+  await RAPIER.init();
+  console.log('[Warehouse Strike] Rapier WASM loaded successfully!');
 
-// Setup Three.js WebGL Scene
-const canvas = document.getElementById('game-canvas') as HTMLCanvasElement;
-const renderer = new THREE.WebGLRenderer({
-  canvas,
-  antialias: true,
-  powerPreference: 'high-performance'
-});
-renderer.setSize(window.innerWidth, window.innerHeight);
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  const canvas = document.getElementById('game-canvas') as HTMLCanvasElement;
+  const clickToPlayEl = document.getElementById('click-to-play');
+  const connStatusEl = document.getElementById('connection-status');
+  const roomInfoEl = document.getElementById('room-info');
 
-const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x0e1117);
-scene.fog = new THREE.FogExp2(0x0e1117, 0.015);
-
-const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-camera.position.set(0, 5, 10);
-camera.lookAt(0, 1.5, 0);
-
-// Lighting
-const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
-scene.add(ambientLight);
-
-const dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
-dirLight.position.set(10, 20, 10);
-dirLight.castShadow = true;
-dirLight.shadow.mapSize.width = 2048;
-dirLight.shadow.mapSize.height = 2048;
-scene.add(dirLight);
-
-// Industrial Floor Grid
-const gridHelper = new THREE.GridHelper(70, 70, 0x38bdf8, 0x1f2937);
-gridHelper.position.y = 0;
-scene.add(gridHelper);
-
-const floorGeo = new THREE.PlaneGeometry(70, 45);
-const floorMat = new THREE.MeshStandardMaterial({
-  color: 0x161b22,
-  roughness: 0.8,
-  metalness: 0.2
-});
-const floorMesh = new THREE.Mesh(floorGeo, floorMat);
-floorMesh.rotation.x = -Math.PI / 2;
-floorMesh.receiveShadow = true;
-scene.add(floorMesh);
-
-// Center Prototype Crate
-const crateGeo = new THREE.BoxGeometry(2, 2, 2);
-const crateMat = new THREE.MeshStandardMaterial({
-  color: 0x2563eb,
-  roughness: 0.4,
-  metalness: 0.6
-});
-const crate = new THREE.Mesh(crateGeo, crateMat);
-crate.position.set(0, 1, 0);
-crate.castShadow = true;
-crate.receiveShadow = true;
-scene.add(crate);
-
-// Resize handling
-window.addEventListener('resize', () => {
-  camera.aspect = window.innerWidth / window.innerHeight;
-  camera.updateProjectionMatrix();
+  // Setup WebGL2 Renderer
+  const renderer = new THREE.WebGLRenderer({
+    canvas,
+    antialias: true,
+    powerPreference: 'high-performance'
+  });
   renderer.setSize(window.innerWidth, window.innerHeight);
-});
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
-// UI elements
-const connStatusEl = document.getElementById('connection-status');
-const roomInfoEl = document.getElementById('room-info');
-const fpsEl = document.getElementById('dbg-fps');
+  // Scene & Camera
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x0e1117);
+  scene.fog = new THREE.FogExp2(0x0e1117, 0.018);
 
-// Setup Colyseus Client
-const serverUrl = window.location.hostname === 'localhost' 
-  ? 'ws://localhost:2567' 
-  : `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}`;
+  const camera = new THREE.PerspectiveCamera(90, window.innerWidth / window.innerHeight, 0.05, 500);
+  scene.add(camera);
 
-const colyseusClient = new Client(serverUrl);
+  // Physics World (Gravity: -24 m/s^2)
+  const rapierWorld = new RAPIER.World({ x: 0, y: -24.0, z: 0 });
 
-async function connectToServer() {
+  // Build Warehouse Map & Colliders
+  const warehouse = new WarehouseWorld(scene, rapierWorld);
+  await warehouse.build();
+
+  // Character Controller & Spawn Selection (West Alpha spawn)
+  const startSpawn = WAREHOUSE_MAP.spawns[0];
+  const charController = new CharacterController(rapierWorld, camera, startSpawn.x, startSpawn.y, startSpawn.z);
+
+  // Input Manager
+  const inputManager = new InputManager(canvas);
+  inputManager.setLook(startSpawn.yaw, 0);
+
+  // Viewmodel (FP Gun & Arms)
+  const viewmodel = new Viewmodel(camera);
+
+  // Debug Overlay (F3)
+  const debugOverlay = new DebugOverlay(renderer);
+  inputManager.onDebugToggle = () => debugOverlay.toggle();
+
+  // Resize handling
+  window.addEventListener('resize', () => {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+  });
+
+  // Setup Colyseus Client
+  const serverUrl = window.location.hostname === 'localhost'
+    ? 'ws://localhost:2567'
+    : `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}`;
+
+  const colyseusClient = new Client(serverUrl);
+
   try {
     if (connStatusEl) connStatusEl.innerText = 'Connecting to server...';
     const room: Room<WarehouseRoomState> = await colyseusClient.joinOrCreate<WarehouseRoomState>('warehouse_room', {
-      nickname: 'Cadet_' + Math.floor(Math.random() * 1000)
+      nickname: 'Alpha_1'
     });
 
-    if (connStatusEl) {
-      connStatusEl.innerText = `Connected (ID: ${room.sessionId})`;
-    }
-    if (roomInfoEl) {
-      roomInfoEl.innerText = `Room Code: ${room.state.roomCode} | Phase 1 Verified`;
-    }
+    if (connStatusEl) connStatusEl.innerText = `Connected (${room.sessionId})`;
+    if (roomInfoEl) roomInfoEl.innerText = `Room: ${room.state.roomCode} | Phase 2 Single-Player Core`;
 
     room.onStateChange((state) => {
       if (roomInfoEl) {
         roomInfoEl.innerText = `Room: ${state.roomCode} | State: ${state.matchState} | Players: ${state.players.size}`;
       }
     });
-
-    console.log('[Colyseus] Joined room successfully:', room.id, room.state.roomCode);
   } catch (err) {
-    console.error('[Colyseus] Connection error:', err);
-    if (connStatusEl) {
-      connStatusEl.innerText = 'Server offline (run pnpm dev)';
+    console.warn('[Colyseus] Server connection failed, running standalone offline mode:', err);
+    if (connStatusEl) connStatusEl.innerText = 'Offline Mode (Standalone Single-Player)';
+  }
+
+  // Animation & Physics Loop
+  let lastTime = performance.now();
+  let clientTick = 0;
+
+  function renderLoop() {
+    requestAnimationFrame(renderLoop);
+
+    const now = performance.now();
+    let dt = (now - lastTime) / 1000;
+    lastTime = now;
+
+    // Clamp dt to avoid spiral of death on tab refocus
+    dt = Math.min(0.05, Math.max(0.001, dt));
+    clientTick++;
+
+    // Update click to play banner
+    if (clickToPlayEl) {
+      clickToPlayEl.style.opacity = inputManager.isLocked ? '0' : '1';
     }
+
+    // Sample player keyboard/mouse input
+    const input = inputManager.sampleInput(clientTick);
+
+    // Update Kinematic Character Physics
+    charController.update(input, dt);
+
+    // Step Rapier Physics World
+    rapierWorld.step();
+
+    // Update First-Person Viewmodel sway and bobbing
+    viewmodel.update(
+      dt,
+      charController.horizontalSpeed,
+      charController.isGrounded,
+      input.yaw,
+      input.pitch,
+      charController.isSprinting
+    );
+
+    // Render 3D Scene
+    renderer.render(scene, camera);
+
+    // Update Debug Overlay telemetry
+    debugOverlay.update(charController);
   }
+
+  renderLoop();
 }
 
-connectToServer();
-
-// Render loop & FPS calculation
-let frameCount = 0;
-let lastTime = performance.now();
-let lastFpsTime = performance.now();
-
-function animate() {
-  requestAnimationFrame(animate);
-
-  const now = performance.now();
-  frameCount++;
-
-  if (now - lastFpsTime >= 1000) {
-    if (fpsEl) fpsEl.innerText = frameCount.toString();
-    frameCount = 0;
-    lastFpsTime = now;
-  }
-
-  // Smooth rotation for test object
-  crate.rotation.y += 0.01;
-  crate.rotation.x += 0.005;
-
-  renderer.render(scene, camera);
-}
-
-animate();
-
+bootstrap().catch((err) => {
+  console.error('[Warehouse Strike] Fatal bootstrap error:', err);
+});
