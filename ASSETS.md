@@ -49,10 +49,21 @@ All 3D meshes are built from optimized Three.js BufferGeometries:
 | **Cover Props** | `RealisticWarehouse.ts` | Shipping containers (standard 20ft ISO dimensions), 4-tier orange pallet racks, wooden cargo pallets, metal oil drums, and concrete barriers. | ~32,000 | MIT / Original |
 | **Remote Soldiers** | `RemotePlayer.ts` | Alpha (Navy/Cyan) and Bravo (Slate/Safety Orange) combat soldiers with tactical vests, helmets with glowing visors, combat boots, and hip ammo pouches. | ~2,400 per soldier | MIT / Original |
 | **First-Person Viewmodels** | `Viewmodel.ts` | Tactical first-person viewmodels for M416, Operator, and Desert Eagle with dynamic sway, walk bobbing, and recoil kick animations. | ~1,800 per weapon | MIT / Original |
+| **M4 - FPS Weapon Animations Pack (v.1)** | `public/models/m4/` | Rigged FPS combat hands with tactical gloves, high-poly M4 assault rifle, 5.56mm magazine/rounds, and 5 baked animations (`Fire`, `Reload`, `Reload_Empty`, `Draw`, `Holster`). Author: **BarcodeGames** on Sketchfab. | 14.8k triangles | Creative Commons Attribution (CC-BY 4.0) |
+
+---
+
+## 📜 Third-Party Open Source & Creative Commons Credits
+
+### M4 - FPS Weapon Animations Pack (v.1)
+- **Author**: BarcodeGames
+- **Source**: [Sketchfab](https://sketchfab.com/3d-models/m4-fps-weapon-animations-pack-v1-662fc74dda2646cfb48fc610705768ef)
+- **License**: Creative Commons Attribution ([CC-BY 4.0](https://creativecommons.org/licenses/by/4.0/))
+- **Modifications**: Upgraded materials to standard glTF 2.0 PBR Metallic-Roughness; normalized baked multi-clip timeline track offsets to zero base; dynamically aligned rig root to first-person camera origin; mapped animation playback speeds to in-engine weapon fire rate and reload cooldowns.
 
 ---
 
 ## 📜 Summary of Compliance
-* Zero third-party proprietary assets.
-* Zero binary audio or texture files that can trigger DMCA or hosting bandwidth limits.
-* All assets generated client-side upon initial load; total initial bundle size is strictly under **6 MB** uncompressed and **1.8 MB** gzip compressed, well below the 15 MB specification budget.
+* 100% compliant with Creative Commons Attribution (CC-BY 4.0) and MIT open licenses.
+* Zero proprietary or unauthorized game rips.
+* All assets optimized for instant client-side WebGL2 streaming.

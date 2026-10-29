@@ -136,21 +136,26 @@ async function bootstrap() {
   });
 
   // Input Callbacks
-  weaponManager.onReloadStart = () => networkController.sendReload();
+  weaponManager.onReloadStart = (isEmpty: boolean) => {
+    networkController.sendReload();
+    viewmodel.playReload(isEmpty);
+  };
   inputManager.onReload = () => {
     weaponManager.startReload();
-    networkController.sendReload();
   };
   inputManager.onSlot1 = () => {
     weaponManager.switchSlot(1);
+    viewmodel.setWeapon(weaponManager.activeWeapon.id);
     networkController.sendSwitchWeapon(weaponManager.activeWeapon.id);
   };
   inputManager.onSlot2 = () => {
     weaponManager.switchSlot(2);
+    viewmodel.setWeapon(weaponManager.activeWeapon.id);
     networkController.sendSwitchWeapon(weaponManager.activeWeapon.id);
   };
   inputManager.onSwapPrimary = () => {
     weaponManager.togglePrimaryWeapon();
+    viewmodel.setWeapon(weaponManager.activeWeapon.id);
     networkController.sendSwitchWeapon(weaponManager.activeWeapon.id);
   };
   inputManager.onToggleZoom = () => weaponManager.toggleOperatorZoom();
@@ -266,6 +271,7 @@ async function bootstrap() {
       if (fired) {
         _aimDir.set(0, 0, -1).applyQuaternion(camera.quaternion);
         networkController.sendFireIntent(weaponManager.activeWeapon.id, camera.position, _aimDir);
+        viewmodel.playFire();
       }
     }
 

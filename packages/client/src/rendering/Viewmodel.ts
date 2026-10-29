@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { WeaponId } from '@warehouse-strike/shared';
 
 export class Viewmodel {
@@ -9,6 +10,11 @@ export class Viewmodel {
   private weapons: Record<WeaponId, THREE.Group>;
   private activeId: WeaponId = 'm416';
 
+  // Animated Rigged Hands & M4 Weapon Pack
+  private mixer?: THREE.AnimationMixer;
+  private actions: Map<string, THREE.AnimationAction> = new Map();
+  public isM4Loaded: boolean = false;
+
   // Bobbing & sway state
   private bobTime: number = 0;
   private lastYaw: number = 0;
@@ -17,9 +23,11 @@ export class Viewmodel {
   private currentSwayY: number = 0;
 
   // Offsets
-  private hipPosition = new THREE.Vector3(0.22, -0.20, -0.42);
-  private adsPosition = new THREE.Vector3(0.0, -0.145, -0.32); // Center aligned for iron sights
-  private currentBasePos = new THREE.Vector3().copy(this.hipPosition);
+  private defaultHipPosition = new THREE.Vector3(0.22, -0.20, -0.42);
+  private defaultAdsPosition = new THREE.Vector3(0.0, -0.145, -0.32);
+  private m4HipPosition = new THREE.Vector3(0.0, 0.0, 0.0);
+  private m4AdsPosition = new THREE.Vector3(-0.071, 0.025, 0.04);
+  private currentBasePos = new THREE.Vector3().copy(this.m4HipPosition);
 
   constructor(camera: THREE.Camera) {
     this.camera = camera;
@@ -39,7 +47,140 @@ export class Viewmodel {
       mesh.visible = id === this.activeId;
     }
 
-    this.group.position.copy(this.hipPosition);
+    this.group.position.copy(this.m4HipPosition);
+
+    // Load animated rigged M416 with FPS Hands
+    this.loadM4Model();
+  }
+
+  private loadM4Model() {
+    const loader = new GLTFLoader();
+    loader.load(
+      '/models/m4/scene.gltf',
+      (gltf) => {
+        console.log('[Viewmodel] Loaded M4 FPS Weapon Animations Pack (v.1) with Rigged Hands!');
+        const model = gltf.scene;
+
+        // Wrapper to isolate transforms
+        const wrapper = new THREE.Group();
+        wrapper.name = 'm4_fps_animated';
+        // Rotate 180 deg around Y so weapon & hands face forward down camera view (-Z)
+        model.rotation.y = Math.PI;
+        wrapper.add(model);
+
+        // Find FPS_Camera bone and align it exactly to camera eye origin (0, 0, 0)
+        let fpsCamNode: THREE.Object3D | null = null;
+        model.traverse((child) => {
+          if (child.name === 'FPS_Camera' || child.name === 'FPS_Camera_j_01') {
+            if (!fpsCamNode) fpsCamNode = child;
+          }
+        });
+
+        wrapper.updateMatrixWorld(true);
+        if (fpsCamNode) {
+          const camPos = new THREE.Vector3();
+          (fpsCamNode as THREE.Object3D).getWorldPosition(camPos);
+          model.position.sub(camPos);
+        } else {
+          model.position.set(0.0109, -1.5393, -0.1006);
+        }
+
+        // Traversal for shadows and PBR material setup
+        model.traverse((child) => {
+          if ((child as THREE.Mesh).isMesh) {
+            child.castShadow = true;
+            child.receiveShadow = true;
+            const mat = (child as THREE.Mesh).material as THREE.MeshStandardMaterial;
+            if (mat) {
+              mat.depthWrite = true;
+              mat.roughness = Math.min(0.65, mat.roughness || 0.5);
+              mat.needsUpdate = true;
+            }
+          }
+        });
+
+        // Initialize Animation Mixer
+        this.mixer = new THREE.AnimationMixer(model);
+
+        for (const clip of gltf.animations) {
+          // Normalize start times of baked timeline
+          const minTime = Math.min(...clip.tracks.map((t) => t.times[0]));
+          if (minTime > 0) {
+            for (const track of clip.tracks) {
+              for (let i = 0; i < track.times.length; i++) {
+                track.times[i] -= minTime;
+              }
+            }
+            clip.resetDuration();
+          }
+
+          const action = this.mixer.clipAction(clip);
+          if (clip.name === 'Fire') {
+            action.setLoop(THREE.LoopOnce, 1);
+            action.clampWhenFinished = false;
+            action.timeScale = 3.2; // Snappy automatic fire cycle for 700 RPM
+          } else if (clip.name === 'Reload') {
+            action.setLoop(THREE.LoopOnce, 1);
+            action.clampWhenFinished = false;
+            action.timeScale = 1.65; // Matches 2.2s tactical reload
+          } else if (clip.name === 'Reload_Empty') {
+            action.setLoop(THREE.LoopOnce, 1);
+            action.clampWhenFinished = false;
+            action.timeScale = 1.36; // Matches 2.8s empty reload
+          } else if (clip.name === 'Draw') {
+            action.setLoop(THREE.LoopOnce, 1);
+            action.clampWhenFinished = false;
+            action.timeScale = 1.4;
+          } else if (clip.name === 'Holster') {
+            action.setLoop(THREE.LoopOnce, 1);
+            action.clampWhenFinished = true;
+          }
+          this.actions.set(clip.name, action);
+        }
+
+        // Replace procedural placeholder
+        const oldM4 = this.weapons.m416;
+        this.group.remove(oldM4);
+        this.weapons.m416 = wrapper;
+        this.group.add(wrapper);
+        wrapper.visible = this.activeId === 'm416';
+        this.isM4Loaded = true;
+
+        // Play initial draw animation
+        this.playDraw();
+      },
+      undefined,
+      (err) => {
+        console.warn('[Viewmodel] Fallback to procedural M4 model:', err);
+      }
+    );
+  }
+
+  public playFire() {
+    if (this.activeId === 'm416' && this.actions.has('Fire')) {
+      const fire = this.actions.get('Fire')!;
+      fire.reset();
+      fire.play();
+    }
+  }
+
+  public playReload(isEmpty: boolean = false) {
+    if (this.activeId === 'm416') {
+      const actionName = isEmpty ? 'Reload_Empty' : 'Reload';
+      const reload = this.actions.get(actionName) || this.actions.get('Reload');
+      if (reload) {
+        reload.reset();
+        reload.play();
+      }
+    }
+  }
+
+  public playDraw() {
+    if (this.activeId === 'm416' && this.actions.has('Draw')) {
+      const draw = this.actions.get('Draw')!;
+      draw.reset();
+      draw.play();
+    }
   }
 
   public setWeapon(id: WeaponId) {
@@ -47,6 +188,9 @@ export class Viewmodel {
     this.activeId = id;
     for (const [key, mesh] of Object.entries(this.weapons)) {
       mesh.visible = key === id;
+    }
+    if (id === 'm416') {
+      this.playDraw();
     }
   }
 
@@ -192,6 +336,11 @@ export class Viewmodel {
     kickZ: number,
     kickPitch: number
   ) {
+    // Step AnimationMixer
+    if (this.mixer) {
+      this.mixer.update(dt);
+    }
+
     // 1. Mouse Sway
     const deltaYaw = yaw - this.lastYaw;
     const deltaPitch = pitch - this.lastPitch;
@@ -225,10 +374,10 @@ export class Viewmodel {
     const bobY = Math.abs(Math.cos(this.bobTime)) * bobAmpY;
 
     // 3. Stance transitions (Hip vs ADS vs Sprint)
-    let targetPos = this.hipPosition;
-    if (isAiming) {
-      targetPos = this.adsPosition;
-    }
+    const isM4 = this.activeId === 'm416' && this.isM4Loaded;
+    const hipPos = isM4 ? this.m4HipPosition : this.defaultHipPosition;
+    const adsPos = isM4 ? this.m4AdsPosition : this.defaultAdsPosition;
+    const targetPos = isAiming ? adsPos : hipPos;
 
     this.currentBasePos.lerp(targetPos, Math.min(1.0, 14.0 * dt));
 

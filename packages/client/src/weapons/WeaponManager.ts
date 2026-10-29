@@ -38,7 +38,7 @@ export class WeaponManager {
 
   // Hit callbacks
   public onHit?: (result: DummyHitResult) => void;
-  public onReloadStart?: () => void;
+  public onReloadStart?: (isEmpty: boolean) => void;
 
   constructor(camera: THREE.PerspectiveCamera, audio: AudioEngine, vfx: VFXManager) {
     this.camera = camera;
@@ -224,12 +224,13 @@ export class WeaponManager {
 
     if (this.isReloading || ammo.mag >= weapon.magSize || ammo.reserve <= 0) return;
 
+    const isEmpty = ammo.mag === 0;
     this.isReloading = true;
     this.isAiming = false;
-    this.reloadTimer = ammo.mag === 0 ? weapon.reloadTimeEmpty : weapon.reloadTimeTactical;
+    this.reloadTimer = isEmpty ? weapon.reloadTimeEmpty : weapon.reloadTimeTactical;
     this.audio.playReload();
-    if (this.onReloadStart) this.onReloadStart();
-    console.log(`[WeaponManager] Reloading ${weapon.name} (${this.reloadTimer}s)...`);
+    if (this.onReloadStart) this.onReloadStart(isEmpty);
+    console.log(`[WeaponManager] Reloading ${weapon.name} (${this.reloadTimer}s, empty: ${isEmpty})...`);
   }
 
   public update(
