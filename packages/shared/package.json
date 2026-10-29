@@ -1,0 +1,16 @@
+{
+  "name": "@warehouse-strike/shared",
+  "version": "1.0.0",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch --preserveWatchOutput"
+  },
+  "dependencies": {
+    "@colyseus/schema": "^2.0.37"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.2"
+  }
+}
