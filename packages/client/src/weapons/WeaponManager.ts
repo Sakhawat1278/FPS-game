@@ -234,6 +234,9 @@ export class WeaponManager {
         // Apply damage to dummy
         const result = dummy.takeDamage(damage, isHeadshot, hit.point);
 
+        // Spawn 3D Blood Splash (Cavitation Rings, Fluid Crown & Droplets along bullet path)
+        this.vfx.spawnBloodSplash(hit.point, rayDir, isHeadshot);
+
         // Play feedback sounds
         if (isHeadshot) {
           this.audio.playHeadshotDing();

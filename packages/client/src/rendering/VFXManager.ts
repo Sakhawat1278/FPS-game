@@ -21,6 +21,16 @@ interface ActiveCasing {
   isResting: boolean;
 }
 
+interface ActiveBloodSplash {
+  group: THREE.Group;
+  materials: THREE.MeshStandardMaterial[];
+  droplets?: THREE.Points;
+  dropletVelocities: THREE.Vector3[];
+  age: number;
+  maxAge: number;
+  baseScale: number;
+}
+
 interface ActiveImpact {
   points: THREE.Points;
   velocities: THREE.Vector3[];
@@ -38,6 +48,10 @@ export class VFXManager {
   private shellPool: THREE.Object3D[] = [];
   private activeCasings: ActiveCasing[] = [];
   public onShellBounce?: () => void;
+
+  // 3D Blood & Flesh Impact Splashes (Cavitation Rings, Fluid Crown & Droplets)
+  private activeBloodSplashes: ActiveBloodSplash[] = [];
+  private bloodSplashPool: ActiveBloodSplash[] = [];
 
   // Tracers
   private activeTracers: ActiveTracer[] = [];
@@ -230,6 +244,145 @@ export class VFXManager {
     });
   }
 
+  private createBloodSplashGroup(): { group: THREE.Group; materials: THREE.MeshStandardMaterial[]; droplets: THREE.Points; dropletVelocities: THREE.Vector3[] } {
+    const group = new THREE.Group();
+    const materials: THREE.MeshStandardMaterial[] = [];
+
+    // Deep ruby liquid blood material (high specular glossiness like fluid splash)
+    const bloodMat = new THREE.MeshStandardMaterial({
+      color: 0x990000,
+      roughness: 0.15,
+      metalness: 0.12,
+      transparent: true,
+      opacity: 0.95,
+      side: THREE.DoubleSide
+    });
+    materials.push(bloodMat);
+
+    // Bright scarlet core accent
+    const coreMat = new THREE.MeshStandardMaterial({
+      color: 0xdc2626,
+      roughness: 0.18,
+      metalness: 0.08,
+      transparent: true,
+      opacity: 0.95,
+      side: THREE.DoubleSide
+    });
+    materials.push(coreMat);
+
+    // 1. Concentric Cavitation Rings along bullet penetration axis (like reference design)
+    for (let i = 0; i < 4; i++) {
+      const ringRadius = 0.04 + i * 0.055;
+      const tubeRadius = 0.006 + (3 - i) * 0.002;
+      const ringGeo = new THREE.TorusGeometry(ringRadius, tubeRadius, 6, 16);
+      const ringMesh = new THREE.Mesh(ringGeo, bloodMat);
+      ringMesh.position.z = -i * 0.085;
+      group.add(ringMesh);
+    }
+
+    // 2. Main jagged conical splash crown
+    const crownGeo = new THREE.ConeGeometry(0.24, 0.35, 14, 2, true);
+    const crownMesh = new THREE.Mesh(crownGeo, bloodMat);
+    crownMesh.rotation.x = Math.PI / 2;
+    crownMesh.position.z = -0.14;
+    group.add(crownMesh);
+
+    // 3. Radial fluid spikes / tendrils radiating around the crown
+    for (let j = 0; j < 10; j++) {
+      const spikeGeo = new THREE.ConeGeometry(0.014, 0.24, 5);
+      const spikeMesh = new THREE.Mesh(spikeGeo, coreMat);
+      const angle = (j / 10) * Math.PI * 2 + (Math.random() - 0.5) * 0.2;
+      spikeMesh.position.set(Math.cos(angle) * 0.16, Math.sin(angle) * 0.16, -0.20);
+      spikeMesh.rotation.z = angle - Math.PI / 2;
+      spikeMesh.rotation.x = Math.PI / 3;
+      group.add(spikeMesh);
+    }
+
+    // 4. Dynamic fluid droplets bursting outward
+    const count = 16;
+    const positions = new Float32Array(count * 3);
+    const dropletVelocities: THREE.Vector3[] = [];
+    const dropletGeo = new THREE.BufferGeometry();
+    dropletGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+
+    const dropletMat = new THREE.PointsMaterial({
+      color: 0x8b0000,
+      size: 0.07,
+      transparent: true,
+      opacity: 0.95
+    });
+
+    const droplets = new THREE.Points(dropletGeo, dropletMat);
+    group.add(droplets);
+
+    return { group, materials, droplets, dropletVelocities };
+  }
+
+  public spawnBloodSplash(hitPoint: THREE.Vector3, bulletDir: THREE.Vector3, isHeadshot: boolean = false) {
+    let splashItem: ActiveBloodSplash;
+
+    if (this.bloodSplashPool.length > 0) {
+      splashItem = this.bloodSplashPool.pop()!;
+    } else {
+      const created = this.createBloodSplashGroup();
+      splashItem = {
+        group: created.group,
+        materials: created.materials,
+        droplets: created.droplets,
+        dropletVelocities: created.dropletVelocities,
+        age: 0,
+        maxAge: 0.35,
+        baseScale: isHeadshot ? 1.6 : 1.0
+      };
+    }
+
+    splashItem.age = 0;
+    splashItem.baseScale = isHeadshot ? 1.6 : 1.0;
+
+    // Position at hit point
+    splashItem.group.position.copy(hitPoint);
+
+    // Orient along bullet trajectory (shockwave & spray blossom along and outward from bullet vector)
+    splashItem.group.lookAt(hitPoint.clone().add(bulletDir));
+
+    // Reset material opacities
+    for (const mat of splashItem.materials) {
+      mat.opacity = 0.95;
+    }
+
+    // Reset droplets
+    if (splashItem.droplets) {
+      const posAttr = splashItem.droplets.geometry.getAttribute('position') as THREE.BufferAttribute;
+      const arr = posAttr.array as Float32Array;
+      splashItem.dropletVelocities.length = 0;
+
+      for (let i = 0; i < 16; i++) {
+        arr[i * 3] = 0;
+        arr[i * 3 + 1] = 0;
+        arr[i * 3 + 2] = 0;
+
+        // Radiating spray velocities
+        const vel = new THREE.Vector3(
+          (Math.random() - 0.5) * 4.5,
+          (Math.random() - 0.5) * 4.5,
+          -Math.random() * 5.0 - 2.0 // Flying forward along penetration vector
+        );
+        splashItem.dropletVelocities.push(vel);
+      }
+      posAttr.needsUpdate = true;
+      (splashItem.droplets.material as THREE.PointsMaterial).opacity = 0.95;
+    }
+
+    splashItem.group.scale.set(0.05, 0.05, 0.05);
+
+    if (!splashItem.group.parent) {
+      this.scene.add(splashItem.group);
+    }
+    splashItem.group.visible = true;
+
+    this.activeBloodSplashes.push(splashItem);
+  }
+
   public spawnImpact(hitPoint: THREE.Vector3, normal: THREE.Vector3) {
     // Limit max active impacts for performance
     if (this.activeImpacts.length > 16) {
@@ -382,6 +535,53 @@ export class VFXManager {
           imp.velocities[j].y -= 9.8 * dt;
         }
         posAttr.needsUpdate = true;
+      }
+    }
+
+    // 5. Update 3D Blood & Flesh Impact Splashes (Cavitation, Crown & Droplets)
+    for (let i = this.activeBloodSplashes.length - 1; i >= 0; i--) {
+      const s = this.activeBloodSplashes[i];
+      s.age += dt;
+      const progress = s.age / s.maxAge;
+
+      if (progress >= 1.0) {
+        s.group.visible = false;
+        this.activeBloodSplashes.splice(i, 1);
+        if (this.bloodSplashPool.length < 24) {
+          this.bloodSplashPool.push(s);
+        } else {
+          this.scene.remove(s.group);
+        }
+        continue;
+      }
+
+      // Expansion phase (rapid blossoming from 0 -> 0.25, then stretch & dissipation)
+      let scaleMult = 1.0;
+      if (progress < 0.25) {
+        scaleMult = (progress / 0.25) * s.baseScale;
+      } else {
+        scaleMult = s.baseScale * (1.0 + (progress - 0.25) * 0.4);
+      }
+      s.group.scale.set(scaleMult, scaleMult, scaleMult * (1.0 + progress * 0.8));
+
+      // Fade opacity over lifetime
+      const fade = Math.max(0, 1.0 - Math.pow(progress, 1.5));
+      for (const mat of s.materials) {
+        mat.opacity = fade * 0.95;
+      }
+
+      // Update fluid droplets with velocity & gravity
+      if (s.droplets) {
+        const posAttr = s.droplets.geometry.getAttribute('position') as THREE.BufferAttribute;
+        const arr = posAttr.array as Float32Array;
+        for (let j = 0; j < s.dropletVelocities.length; j++) {
+          arr[j * 3] += s.dropletVelocities[j].x * dt;
+          arr[j * 3 + 1] += s.dropletVelocities[j].y * dt;
+          arr[j * 3 + 2] += s.dropletVelocities[j].z * dt;
+          s.dropletVelocities[j].y -= 9.8 * dt;
+        }
+        posAttr.needsUpdate = true;
+        (s.droplets.material as THREE.PointsMaterial).opacity = fade * 0.95;
       }
     }
   }
