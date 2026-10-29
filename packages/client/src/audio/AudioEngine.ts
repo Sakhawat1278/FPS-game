@@ -357,6 +357,27 @@ export class AudioEngine {
     osc.stop(t + 0.035);
   }
 
+  public playShellCasingDrop() {
+    if (!this.ctx || !this.isUnlocked) return;
+    const t = this.ctx.currentTime;
+
+    // Metallic ping / tink of spent brass casing bouncing on ground
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.type = 'sine';
+    const baseFreq = 2600 + Math.random() * 800;
+    osc.frequency.setValueAtTime(baseFreq, t);
+    osc.frequency.exponentialRampToValueAtTime(baseFreq * 0.7, t + 0.05);
+
+    gain.gain.setValueAtTime(0.15, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.05);
+
+    osc.connect(gain);
+    gain.connect(this.sfxGain);
+    osc.start(t);
+    osc.stop(t + 0.05);
+  }
+
   public playHitmarker() {
     if (!this.ctx || !this.isUnlocked) return;
     const t = this.ctx.currentTime;

@@ -49,6 +49,9 @@ export class WeaponManager {
     this.audio = audio;
     this.vfx = vfx;
     this.recoilSystem = new RecoilSystem();
+
+    // Play metallic audio when spent brass casing impacts ground
+    this.vfx.onShellBounce = () => this.audio.playShellCasingDrop();
   }
 
   public get activeWeapon(): WeaponData {
@@ -152,6 +155,18 @@ export class WeaponManager {
       muzzleOffset.applyQuaternion(this.camera.quaternion)
     );
     this.vfx.triggerMuzzleFlash(muzzlePos);
+
+    // Eject authentic spent brass casing from right-side chamber port
+    const ejectionOffset = isM4
+      ? (this.isAiming ? new THREE.Vector3(0.04, -0.015, -0.22) : new THREE.Vector3(0.12, -0.04, -0.22))
+      : new THREE.Vector3(0.15, -0.08, -0.25);
+    const ejectionPos = this.camera.position.clone().add(
+      ejectionOffset.applyQuaternion(this.camera.quaternion)
+    );
+    const camDir = new THREE.Vector3(0, 0, -1).applyQuaternion(this.camera.quaternion);
+    const camRight = new THREE.Vector3(1, 0, 0).applyQuaternion(this.camera.quaternion);
+    const camUp = new THREE.Vector3(0, 1, 0).applyQuaternion(this.camera.quaternion);
+    this.vfx.spawnCasing(ejectionPos, camDir, camRight, camUp);
 
     // Hitscan Raycasting with Spread
     this.performHitscan(weapon, muzzlePos, dummies, staticMapGroup);
