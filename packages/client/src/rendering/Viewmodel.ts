@@ -25,10 +25,10 @@ export class Viewmodel {
   // Offsets
   private defaultHipPosition = new THREE.Vector3(0.22, -0.20, -0.42);
   private defaultAdsPosition = new THREE.Vector3(0.0, -0.145, -0.32);
-  private m4HipPosition = new THREE.Vector3(0.02, -0.045, -0.15);
-  private m4AdsPosition = new THREE.Vector3(-0.038, 0.035, -0.05);
+  private m4HipPosition = new THREE.Vector3(0.0, 0.0, 0.0);
+  private m4AdsPosition = new THREE.Vector3(-0.0711, 0.0014, -0.06);
   private m4HipRotation = new THREE.Vector3(0.0, 0.0, 0.0);
-  private m4AdsRotation = new THREE.Vector3(0.055, -0.032, 0.0);
+  private m4AdsRotation = new THREE.Vector3(0.0, 0.0, 0.0);
   private currentBasePos = new THREE.Vector3().copy(this.m4HipPosition);
   private currentBaseRot = new THREE.Vector3();
 
@@ -36,6 +36,15 @@ export class Viewmodel {
     this.camera = camera;
     this.group = new THREE.Group();
     this.camera.add(this.group);
+
+    // Dedicated camera-local lighting for viewmodel (tightly bounded radius so it never floods the arena)
+    const keyLight = new THREE.PointLight(0xfff7ed, 2.0, 1.8, 2.0);
+    keyLight.position.set(0.18, 0.40, 0.05);
+    this.camera.add(keyLight);
+
+    const fillLight = new THREE.PointLight(0xdbeafe, 1.4, 1.8, 2.0);
+    fillLight.position.set(-0.35, 0.25, -0.35);
+    this.camera.add(fillLight);
 
     // Build models for all three weapons
     this.weapons = {
@@ -92,14 +101,30 @@ export class Viewmodel {
         model.traverse((child) => {
           if ((child as THREE.Mesh).isMesh) {
             child.castShadow = false;
-            child.receiveShadow = false; // Prevent environmental shadow acne
+            child.receiveShadow = false;
+            child.frustumCulled = false; // Prevent skinned mesh from disappearing during ADS
             const mesh = child as THREE.Mesh;
             const mat = mesh.material as THREE.MeshStandardMaterial;
             if (mat) {
               mat.depthWrite = true;
               mat.depthTest = true;
-              mat.roughness = 0.55;
-              mat.metalness = mat.name.includes('M4') ? 0.12 : 0.02;
+              if (mat.name.includes('M4')) {
+                mat.roughness = 0.42;
+                mat.metalness = 0.35;
+                mat.envMapIntensity = 1.0;
+              } else if (mat.name.includes('Glove')) {
+                mat.roughness = 0.75;
+                mat.metalness = 0.05;
+                mat.envMapIntensity = 0.5;
+              } else if (mat.name.includes('Hand')) {
+                mat.roughness = 0.82;
+                mat.metalness = 0.0;
+                mat.envMapIntensity = 0.3;
+              } else if (mat.name.includes('Bullet')) {
+                mat.roughness = 0.30;
+                mat.metalness = 0.85;
+                mat.envMapIntensity = 1.2;
+              }
               if (mat.map) {
                 mat.map.colorSpace = THREE.SRGBColorSpace;
                 mat.map.anisotropy = 8;
@@ -107,7 +132,7 @@ export class Viewmodel {
               }
               if (mat.normalMap) {
                 mat.normalMap.anisotropy = 8;
-                mat.normalScale.set(1.2, 1.2);
+                mat.normalScale.set(1.0, 1.0);
                 mat.normalMap.needsUpdate = true;
               }
               mat.needsUpdate = true;

@@ -71,8 +71,8 @@ async function bootstrap() {
   // Rapier Physics
   const rapierWorld = new RAPIER.World({ x: 0, y: -24.0, z: 0 });
 
-  // Realistic PBR Warehouse World (Replaces Greybox)
-  loadingScreen.setProgress(55, 'GENERATING REALISTIC PBR WAREHOUSE...');
+  // Realistic Hazmob PvP Arena (Replaces Greybox)
+  loadingScreen.setProgress(55, 'LOADING HAZMOB PVP ARENA & 3D ASSETS...');
   const warehouse = new RealisticWarehouse(scene, rapierWorld);
   await warehouse.build();
 
@@ -90,13 +90,13 @@ async function bootstrap() {
   const movementAudio = new MovementAudio(audio);
   const vfx = new VFXManager(scene);
 
-  // Target Dummies
+  // Target Dummies placed throughout Hazmob PvP Arena
   const dummies: TargetDummy[] = [
-    new TargetDummy(scene, 'dummy_near', -18, 0, -10, Math.PI / 4),
-    new TargetDummy(scene, 'dummy_center_mid', 0, 0, 0, Math.PI),
-    new TargetDummy(scene, 'dummy_center_far', 16, 0, 0, Math.PI),
-    new TargetDummy(scene, 'dummy_catwalk_sniper', 8, 3.5, 19.5, Math.PI),
-    new TargetDummy(scene, 'dummy_office', 0, 0, -18, Math.PI / 2)
+    new TargetDummy(scene, 'dummy_mid', -10, 0, 0, Math.PI),
+    new TargetDummy(scene, 'dummy_west_flank', -16, 0, -6, 0),
+    new TargetDummy(scene, 'dummy_east_flank', -2, 0, 6, Math.PI),
+    new TargetDummy(scene, 'dummy_north_ramp', -8, 1.8, -8, Math.PI / 2),
+    new TargetDummy(scene, 'dummy_south_cover', -12, 0, 8, -Math.PI / 2)
   ];
 
   // Character Controller

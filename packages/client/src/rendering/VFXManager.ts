@@ -55,15 +55,15 @@ export class VFXManager {
       opacity: 0.9
     });
 
-    // Muzzle light
-    this.muzzleLight = new THREE.PointLight(0xfef08a, 0, 10);
+    // Muzzle light (tight radius and subtle intensity for natural flash)
+    this.muzzleLight = new THREE.PointLight(0xfef08a, 0, 3.5);
     this.scene.add(this.muzzleLight);
   }
 
   public triggerMuzzleFlash(position: THREE.Vector3) {
     this.muzzleLight.position.copy(position);
-    this.muzzleLight.intensity = 4.0;
-    this.muzzleFlashTimer = 0.04; // 40ms flash
+    this.muzzleLight.intensity = 1.2;
+    this.muzzleFlashTimer = 0.03; // 30ms snappy flash
   }
 
   public spawnTracer(start: THREE.Vector3, target: THREE.Vector3) {

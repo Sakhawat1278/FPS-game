@@ -20,16 +20,16 @@ export class PostprocessingManager {
 
     // ACES Filmic Tone Mapping (Natural, eye-friendly exposure)
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 0.92;
+    this.renderer.toneMappingExposure = 0.88;
 
     // Setup Effect Composer
     this.composer = new EffectComposer(this.renderer);
     this.renderPass = new RenderPass(scene, camera);
     this.composer.addPass(this.renderPass);
 
-    // Subtle bloom (no blinding glares)
+    // Subtle bloom (controlled threshold so only glowing emissive sparks bloom, never floors or walls)
     const resolution = new THREE.Vector2(window.innerWidth, window.innerHeight);
-    this.bloomPass = new UnrealBloomPass(resolution, 0.12, 0.3, 0.92);
+    this.bloomPass = new UnrealBloomPass(resolution, 0.04, 0.25, 0.98);
     this.composer.addPass(this.bloomPass);
 
     this.applyPreset('high');
@@ -54,24 +54,24 @@ export class PostprocessingManager {
         this.renderer.shadowMap.enabled = true;
         this.renderer.shadowMap.type = THREE.BasicShadowMap;
         this.bloomPass.enabled = true;
-        this.bloomPass.strength = 0.1;
-        this.bloomPass.threshold = 0.94;
+        this.bloomPass.strength = 0.03;
+        this.bloomPass.threshold = 0.98;
         break;
       case 'high':
         this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
         this.renderer.shadowMap.enabled = true;
         this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         this.bloomPass.enabled = true;
-        this.bloomPass.strength = 0.12;
-        this.bloomPass.threshold = 0.92;
+        this.bloomPass.strength = 0.04;
+        this.bloomPass.threshold = 0.98;
         break;
       case 'ultra':
         this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2.0));
         this.renderer.shadowMap.enabled = true;
         this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         this.bloomPass.enabled = true;
-        this.bloomPass.strength = 0.18;
-        this.bloomPass.threshold = 0.90;
+        this.bloomPass.strength = 0.06;
+        this.bloomPass.threshold = 0.96;
         break;
     }
   }

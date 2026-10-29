@@ -129,7 +129,7 @@ export class WeaponManager {
     // Muzzle flash at true barrel position
     const isM4 = weapon.id === 'm416';
     const muzzleOffset = isM4
-      ? (this.isAiming ? new THREE.Vector3(0.0, -0.04, -0.75) : new THREE.Vector3(0.06, -0.10, -0.75))
+      ? (this.isAiming ? new THREE.Vector3(0.0, 0.001, -0.78) : new THREE.Vector3(0.071, -0.001, -0.72))
       : new THREE.Vector3(0.2, -0.15, -0.5);
     const muzzlePos = this.camera.position.clone().add(
       muzzleOffset.applyQuaternion(this.camera.quaternion)

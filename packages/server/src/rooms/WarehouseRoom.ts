@@ -9,6 +9,7 @@ import {
   PLAYER_PHYSICS_RULES,
   WEAPONS,
   WAREHOUSE_MAP,
+  HAZMOB_COLLISION,
   PlayerInput,
   FireIntentMessage,
   HitEventMessage,
@@ -78,6 +79,15 @@ export class WarehouseRoom extends Room<WarehouseRoomState> {
     // Build static map collision hulls on server
     const staticBodyDesc = RAPIER.RigidBodyDesc.fixed();
     const staticBody = this.rapierWorld.createRigidBody(staticBodyDesc);
+
+    // 1. Exact Hazmob Map Trimesh Collider
+    const trimeshDesc = RAPIER.ColliderDesc.trimesh(
+      HAZMOB_COLLISION.vertices,
+      HAZMOB_COLLISION.indices
+    );
+    this.rapierWorld.createCollider(trimeshDesc, staticBody);
+
+    // 2. Boundary and Ceiling Colliders
     for (const c of WAREHOUSE_MAP.colliders) {
       const desc = RAPIER.ColliderDesc.cuboid(c.hx, c.hy, c.hz).setTranslation(c.x, c.y, c.z);
       if (c.rotationY) {

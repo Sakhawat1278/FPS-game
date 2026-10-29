@@ -1,291 +1,151 @@
 import * as THREE from 'three';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import RAPIER from '@dimforge/rapier3d-compat';
-import { WAREHOUSE_MAP } from '@warehouse-strike/shared';
+import { WAREHOUSE_MAP, HAZMOB_COLLISION } from '@warehouse-strike/shared';
 import { TextureGenerator } from '../rendering/TextureGenerator';
 
 export class RealisticWarehouse {
   public scene: THREE.Scene;
   public rapierWorld: RAPIER.World;
   public mapGroup: THREE.Group;
+  public isLoaded: boolean = false;
 
   constructor(scene: THREE.Scene, rapierWorld: RAPIER.World) {
     this.scene = scene;
     this.rapierWorld = rapierWorld;
     this.mapGroup = new THREE.Group();
+    this.mapGroup.name = 'hazmob_map_group';
     this.scene.add(this.mapGroup);
   }
 
-  public async build() {
-    console.log('[RealisticWarehouse] Generating realistic PBR warehouse world...');
+  public async build(): Promise<void> {
+    console.log('[RealisticWarehouse] Initializing Hazmob PvP Arena...');
 
-    // 1. Generate PBR Materials
-    const { map: concreteTex, roughnessMap: concreteRough } = TextureGenerator.createConcrete();
-    concreteTex.repeat.set(14, 9);
-    concreteRough.repeat.set(14, 9);
-
-    const woodTex = TextureGenerator.createWood();
-    woodTex.repeat.set(2, 2);
-
-    const metalGratingTex = TextureGenerator.createSteelGrating();
-    metalGratingTex.repeat.set(10, 2);
-
-    const hazardTex = TextureGenerator.createHazardStripes();
-    hazardTex.repeat.set(8, 1);
-
-    const containerBlue = TextureGenerator.createCorrugatedMetal('#2563eb');
-    containerBlue.repeat.set(4, 2);
-
-    const containerOrange = TextureGenerator.createCorrugatedMetal('#ea580c');
-    containerOrange.repeat.set(4, 2);
-
-    const containerGreen = TextureGenerator.createCorrugatedMetal('#16a34a');
-    containerGreen.repeat.set(4, 2);
-
-    const wallTex = TextureGenerator.createCorrugatedMetal('#475569');
-    wallTex.repeat.set(8, 2);
-
-    const materials = {
-      floor: new THREE.MeshStandardMaterial({
-        map: concreteTex,
-        roughnessMap: concreteRough,
-        roughness: 0.95,
-        metalness: 0.0
-      }),
-      ceiling: new THREE.MeshStandardMaterial({
-        color: 0x334155,
-        roughness: 0.8,
-        metalness: 0.2
-      }),
-      wall: new THREE.MeshStandardMaterial({
-        map: wallTex,
-        roughness: 0.65,
-        metalness: 0.25
-      }),
-      wood: new THREE.MeshStandardMaterial({
-        map: woodTex,
-        roughness: 0.75,
-        metalness: 0.05
-      }),
-      catwalk: new THREE.MeshStandardMaterial({
-        map: metalGratingTex,
-        roughness: 0.4,
-        metalness: 0.8
-      }),
-      hazard: new THREE.MeshStandardMaterial({
-        map: hazardTex,
-        roughness: 0.5,
-        metalness: 0.2
-      }),
-      containerBlue: new THREE.MeshStandardMaterial({
-        map: containerBlue,
-        roughness: 0.45,
-        metalness: 0.4
-      }),
-      containerOrange: new THREE.MeshStandardMaterial({
-        map: containerOrange,
-        roughness: 0.45,
-        metalness: 0.4
-      }),
-      containerGreen: new THREE.MeshStandardMaterial({
-        map: containerGreen,
-        roughness: 0.45,
-        metalness: 0.4
-      }),
-      pillar: new THREE.MeshStandardMaterial({
-        color: 0x334155,
-        roughness: 0.7,
-        metalness: 0.1
-      }),
-      rackFrame: new THREE.MeshStandardMaterial({
-        color: 0xf97316, // Bright safety orange pallet rack
-        roughness: 0.4,
-        metalness: 0.6
-      }),
-      railing: new THREE.MeshStandardMaterial({
-        color: 0xcbd5e1,
-        roughness: 0.3,
-        metalness: 0.8
-      })
-    };
-
-    const baseBox = new THREE.BoxGeometry(1, 1, 1);
-
-    // 2. Build Rapier Static Collision Rigidbody & Three.js Meshes
+    // 1. Build Static Rapier Physics Colliders (1:1 with Server)
     const staticBodyDesc = RAPIER.RigidBodyDesc.fixed();
     const staticBody = this.rapierWorld.createRigidBody(staticBodyDesc);
 
+    // 1a. Exact Trimesh Collider for entire Hazmob map
+    const trimeshDesc = RAPIER.ColliderDesc.trimesh(
+      HAZMOB_COLLISION.vertices,
+      HAZMOB_COLLISION.indices
+    );
+    this.rapierWorld.createCollider(trimeshDesc, staticBody);
+
+    // 1b. Boundary Colliders around perimeter
     for (const c of WAREHOUSE_MAP.colliders) {
-      // Rapier Collider (all colliders including ceiling are preserved in physics)
-      const colliderDesc = RAPIER.ColliderDesc.cuboid(c.hx, c.hy, c.hz).setTranslation(c.x, c.y, c.z);
+      const desc = RAPIER.ColliderDesc.cuboid(c.hx, c.hy, c.hz).setTranslation(c.x, c.y, c.z);
       if (c.rotationY) {
-        colliderDesc.setRotation({
+        desc.setRotation({
           x: 0,
           y: Math.sin(c.rotationY / 2),
           z: 0,
           w: Math.cos(c.rotationY / 2)
         });
       }
-      this.rapierWorld.createCollider(colliderDesc, staticBody);
-
-      // In the visual scene, skip rendering the solid opaque ceiling to open the view to the sunrise sky
-      if (c.id === 'ceiling') {
-        continue;
-      }
-
-      // Material assignment based on ID / type
-      let mat: THREE.Material = materials.wall;
-      if (c.id === 'floor') mat = materials.floor;
-      else if (c.id.includes('catwalk_floor') || c.id.includes('ramp')) mat = materials.catwalk;
-      else if (c.id.includes('rail')) mat = materials.railing;
-      else if (c.id.includes('container_alpha')) mat = materials.containerBlue;
-      else if (c.id.includes('container_bravo')) mat = materials.containerOrange;
-      else if (c.id.includes('container_center')) mat = materials.containerGreen;
-      else if (c.id.includes('rack')) mat = materials.rackFrame;
-      else if (c.id.includes('pillar') || c.id.includes('support')) mat = materials.pillar;
-      else if (c.id.includes('crate') || c.id.includes('desk')) mat = materials.wood;
-
-      const mesh = new THREE.Mesh(baseBox, mat);
-      mesh.scale.set(c.hx * 2, c.hy * 2, c.hz * 2);
-      mesh.position.set(c.x, c.y, c.z);
-      if (c.rotationY) mesh.rotation.y = c.rotationY;
-
-      mesh.castShadow = c.type !== 'floor';
-      mesh.receiveShadow = true;
-      this.mapGroup.add(mesh);
+      this.rapierWorld.createCollider(desc, staticBody);
     }
 
-    // 3. Add Warehouse Props & Signage Details
-    this.addDetails(materials);
+    // 2. Open-Air Sunrise Sky Dome
+    this.addSkyDome();
 
-    // 4. Industrial Realistic Lighting
+    // 3. Balanced Eye-Friendly Lighting
     this.setupLighting();
 
-    console.log('[RealisticWarehouse] Warehouse world generation complete!');
+    // 4. Load Visual Hazmob 3D GLTF Model
+    await this.loadMapModel();
+
+    console.log('[RealisticWarehouse] Hazmob PvP world generation complete!');
   }
 
-  private addDetails(materials: any) {
-    // 1. Procedural 360-degree Sunrise Sky Dome (Open-Air Setting)
-    const skyGeo = new THREE.SphereGeometry(260, 32, 16);
+  private loadMapModel(): Promise<void> {
+    return new Promise((resolve) => {
+      const loader = new GLTFLoader();
+      loader.load(
+        '/models/map/hazmob.glb',
+        (gltf) => {
+          console.log('[RealisticWarehouse] Hazmob GLB map loaded successfully!');
+          const model = gltf.scene;
+
+          model.traverse((child) => {
+            if ((child as THREE.Mesh).isMesh) {
+              const mesh = child as THREE.Mesh;
+              mesh.castShadow = true;
+              mesh.receiveShadow = true;
+
+              // Tune materials to a clean matte military finish (no blinding mirror reflections)
+              const mat = mesh.material as THREE.MeshStandardMaterial;
+              if (mat) {
+                mat.roughness = 0.78;
+                mat.metalness = 0.12;
+                mat.envMapIntensity = 0.35;
+                mat.needsUpdate = true;
+              }
+            }
+          });
+
+          this.mapGroup.add(model);
+          this.isLoaded = true;
+          resolve();
+        },
+        undefined,
+        (error) => {
+          console.error('[RealisticWarehouse] Failed to load hazmob.glb, falling back:', error);
+          resolve();
+        }
+      );
+    });
+  }
+
+  private addSkyDome() {
+    // 360-degree Sunrise Sky Dome centered on Hazmob map center (-10.25, 0, 0)
+    const skyGeo = new THREE.SphereGeometry(220, 32, 16);
     const skyMat = new THREE.MeshBasicMaterial({
       map: TextureGenerator.createSunriseSky(),
       side: THREE.BackSide,
       depthWrite: false
     });
     const skyMesh = new THREE.Mesh(skyGeo, skyMat);
+    skyMesh.position.set(-10.25, 0, 0);
     skyMesh.renderOrder = -100;
     this.scene.add(skyMesh);
-
-    // 2. Open-Air Structural Gantry Trusses across the top
-    const trussMat = new THREE.MeshStandardMaterial({ color: 0x475569, metalness: 0.8, roughness: 0.3 });
-    for (let x = -32; x <= 32; x += 8) {
-      // Main cross beam
-      const beam = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.6, 45), trussMat);
-      beam.position.set(x, 10.0, 0);
-      this.mapGroup.add(beam);
-
-      // Angled diagonal support struts
-      const strut1 = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.3, 15), trussMat);
-      strut1.position.set(x, 8.8, -15);
-      strut1.rotation.x = 0.42;
-      this.mapGroup.add(strut1);
-
-      const strut2 = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.3, 15), trussMat);
-      strut2.position.set(x, 8.8, 15);
-      strut2.rotation.x = -0.42;
-      this.mapGroup.add(strut2);
-    }
-
-    // 3. Industrial Bay Signboards
-    const sign1 = new THREE.Mesh(
-      new THREE.PlaneGeometry(8, 2),
-      new THREE.MeshBasicMaterial({ map: TextureGenerator.createSignboard('LOGISTICS BAY 01', 'ALPHA SECTOR', '#38bdf8'), side: THREE.DoubleSide })
-    );
-    sign1.position.set(-25, 7, -22.4);
-    this.mapGroup.add(sign1);
-
-    const sign2 = new THREE.Mesh(
-      new THREE.PlaneGeometry(8, 2),
-      new THREE.MeshBasicMaterial({ map: TextureGenerator.createSignboard('SHIPPING DOCK 02', 'BRAVO SECTOR', '#f97316'), side: THREE.DoubleSide })
-    );
-    sign2.position.set(25, 7, -22.4);
-    this.mapGroup.add(sign2);
-
-    const signCatwalk = new THREE.Mesh(
-      new THREE.PlaneGeometry(8, 2),
-      new THREE.MeshBasicMaterial({ map: TextureGenerator.createSignboard('OVERHEAD CATWALK', 'AUTHORIZED ACCESS ONLY', '#eab308'), side: THREE.DoubleSide })
-    );
-    signCatwalk.position.set(0, 5.5, 17.9);
-    this.mapGroup.add(signCatwalk);
   }
 
   private setupLighting() {
-    // 1. Natural sunrise ambient light with shadow contrast
-    const ambient = new THREE.AmbientLight(0xffedd5, 0.35);
+    // Map center anchor
+    const mapCenter = new THREE.Vector3(-10.25, 0, 0);
+
+    // 1. Soft natural daylight ambient light
+    const ambient = new THREE.AmbientLight(0xffedd5, 0.55);
     this.scene.add(ambient);
 
-    // 2. Hemisphere light: clear blue morning sky down, warm terrain bounce up
-    const hemiLight = new THREE.HemisphereLight(0x38bdf8, 0x78350f, 0.4);
-    hemiLight.position.set(0, 50, 0);
+    // 2. Clear morning sky dome fill (cool blue sky above, warm terrain bounce below)
+    const hemiLight = new THREE.HemisphereLight(0x7dd3fc, 0x78350f, 0.45);
+    hemiLight.position.set(-10.25, 40, 0);
     this.scene.add(hemiLight);
 
-    // 3. Golden Rising Sun Directional Light (low sunrise angle, high-contrast shadows)
-    const sunLight = new THREE.DirectionalLight(0xffb74d, 1.6);
-    sunLight.position.set(45, 26, -30);
+    // 3. Soft morning sun directional light (moderate intensity to eliminate over-exposure)
+    const sunLight = new THREE.DirectionalLight(0xffedd5, 1.0);
+    sunLight.position.set(20, 28, -20);
+    sunLight.target.position.copy(mapCenter);
     sunLight.castShadow = true;
     sunLight.shadow.mapSize.width = 2048;
     sunLight.shadow.mapSize.height = 2048;
     sunLight.shadow.camera.near = 1.0;
-    sunLight.shadow.camera.far = 140;
-    sunLight.shadow.camera.left = -50;
-    sunLight.shadow.camera.right = 50;
-    sunLight.shadow.camera.top = 35;
-    sunLight.shadow.camera.bottom = -35;
-    sunLight.shadow.bias = -0.0003;
+    sunLight.shadow.camera.far = 100;
+    sunLight.shadow.camera.left = -30;
+    sunLight.shadow.camera.right = 30;
+    sunLight.shadow.camera.top = 25;
+    sunLight.shadow.camera.bottom = -25;
+    sunLight.shadow.bias = -0.0004;
     this.scene.add(sunLight);
+    this.scene.add(sunLight.target);
 
-    // 4. Soft sky fill light from opposite horizon
-    const fillLight = new THREE.DirectionalLight(0x60a5fa, 0.25);
-    fillLight.position.set(-35, 20, 25);
+    // 4. Subtle fill directional light from west to soften dark shadows
+    const fillLight = new THREE.DirectionalLight(0x93c5fd, 0.35);
+    fillLight.position.set(-35, 18, 15);
+    fillLight.target.position.copy(mapCenter);
     this.scene.add(fillLight);
-
-    // 5. Warm industrial high-bay lamps (subtle accents, no blinding reflections)
-    const lampPositions = [
-      { x: -20, z: -10, color: 0xfef08a },
-      { x: -20, z: 10, color: 0xfef08a },
-      { x: 0, z: 0, color: 0xffedd5 },
-      { x: 20, z: -10, color: 0xfb923c },
-      { x: 20, z: 10, color: 0xfb923c },
-      { x: 0, z: 19.5, color: 0x38bdf8 } // Catwalk lamp
-    ];
-
-    for (const lp of lampPositions) {
-      const spot = new THREE.SpotLight(lp.color, 0.7, 24, Math.PI / 4, 0.5, 1.2);
-      spot.position.set(lp.x, 9.6, lp.z);
-      spot.target.position.set(lp.x, 0, lp.z);
-      this.scene.add(spot);
-      this.scene.add(spot.target);
-
-      // Visible lamp hood & bulb
-      const hood = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.6, 0.8, 0.4, 12),
-        new THREE.MeshStandardMaterial({ color: 0x334155, metalness: 0.9, roughness: 0.2 })
-      );
-      hood.position.set(lp.x, 9.8, lp.z);
-      this.mapGroup.add(hood);
-
-      const bulb = new THREE.Mesh(
-        new THREE.SphereGeometry(0.2, 8, 8),
-        new THREE.MeshStandardMaterial({
-          color: 0xfef08a,
-          emissive: 0xf59e0b,
-          emissiveIntensity: 0.25,
-          roughness: 0.8,
-          metalness: 0.1
-        })
-      );
-      bulb.position.set(lp.x, 9.6, lp.z);
-      this.mapGroup.add(bulb);
-    }
+    this.scene.add(fillLight.target);
   }
 }
-
