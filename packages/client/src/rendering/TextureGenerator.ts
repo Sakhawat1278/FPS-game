@@ -39,22 +39,24 @@ export class TextureGenerator {
     map.wrapS = THREE.RepeatWrapping;
     map.wrapT = THREE.RepeatWrapping;
 
-    // Roughness map (smooth with occasional puddles)
+    // Roughness map - Uniform dry matte industrial concrete (no blinding mirror reflections)
     const rCanvas = document.createElement('canvas');
     rCanvas.width = size;
     rCanvas.height = size;
     const rCtx = rCanvas.getContext('2d')!;
-    rCtx.fillStyle = '#b0b0b0'; // mostly rough
+    rCtx.fillStyle = '#e5e7eb'; // Highly diffuse, non-reflective matte finish
     rCtx.fillRect(0, 0, size, size);
 
-    // Smooth reflective water puddles
-    rCtx.fillStyle = '#303030';
-    rCtx.beginPath();
-    rCtx.ellipse(140, 180, 60, 35, 0.4, 0, Math.PI * 2);
-    rCtx.fill();
-    rCtx.beginPath();
-    rCtx.ellipse(360, 340, 75, 40, -0.3, 0, Math.PI * 2);
-    rCtx.fill();
+    // Subtle micro-roughness variations
+    const rImgData = rCtx.getImageData(0, 0, size, size);
+    const rData = rImgData.data;
+    for (let i = 0; i < rData.length; i += 4) {
+      const n = (Math.random() - 0.5) * 16;
+      rData[i] = Math.max(200, Math.min(255, rData[i] + n));
+      rData[i + 1] = rData[i];
+      rData[i + 2] = rData[i];
+    }
+    rCtx.putImageData(rImgData, 0, 0);
 
     const roughnessMap = new THREE.CanvasTexture(rCanvas);
     roughnessMap.wrapS = THREE.RepeatWrapping;
@@ -233,30 +235,29 @@ export class TextureGenerator {
     ctx.fillStyle = skyGrad;
     ctx.fillRect(0, 0, width, height);
 
-    // 2. Radiant Rising Sun (positioned at x = 650, y = 390 - sunrise elevation)
+    // 2. Warm Rising Sun (subtle, natural atmospheric glow)
     const sunX = 650;
     const sunY = 385;
 
-    // Wide atmospheric golden flare
-    const coronaGrad = ctx.createRadialGradient(sunX, sunY, 10, sunX, sunY, 260);
-    coronaGrad.addColorStop(0, 'rgba(255, 254, 235, 0.95)');
-    coronaGrad.addColorStop(0.15, 'rgba(254, 240, 138, 0.85)');
-    coronaGrad.addColorStop(0.4, 'rgba(251, 146, 60, 0.45)');
-    coronaGrad.addColorStop(0.7, 'rgba(244, 114, 182, 0.2)');
+    // Soft warm golden haze
+    const coronaGrad = ctx.createRadialGradient(sunX, sunY, 5, sunX, sunY, 110);
+    coronaGrad.addColorStop(0, 'rgba(254, 215, 170, 0.65)');
+    coronaGrad.addColorStop(0.3, 'rgba(251, 146, 60, 0.35)');
+    coronaGrad.addColorStop(0.7, 'rgba(244, 114, 182, 0.12)');
     coronaGrad.addColorStop(1.0, 'rgba(244, 114, 182, 0)');
     ctx.fillStyle = coronaGrad;
     ctx.beginPath();
-    ctx.arc(sunX, sunY, 260, 0, Math.PI * 2);
+    ctx.arc(sunX, sunY, 110, 0, Math.PI * 2);
     ctx.fill();
 
-    // Blazing Core Sun Disc
-    const sunDisc = ctx.createRadialGradient(sunX, sunY, 0, sunX, sunY, 32);
-    sunDisc.addColorStop(0, '#ffffff');
-    sunDisc.addColorStop(0.7, '#fffbeb');
-    sunDisc.addColorStop(1.0, '#fde047');
+    // Natural Sun Disc
+    const sunDisc = ctx.createRadialGradient(sunX, sunY, 0, sunX, sunY, 20);
+    sunDisc.addColorStop(0, '#fef08a');
+    sunDisc.addColorStop(0.8, '#f59e0b');
+    sunDisc.addColorStop(1.0, 'rgba(245, 158, 11, 0)');
     ctx.fillStyle = sunDisc;
     ctx.beginPath();
-    ctx.arc(sunX, sunY, 32, 0, Math.PI * 2);
+    ctx.arc(sunX, sunY, 20, 0, Math.PI * 2);
     ctx.fill();
 
     // 3. Gentle Distant Mountain & Harbor Silhouette along the horizon

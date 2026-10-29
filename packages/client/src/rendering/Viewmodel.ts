@@ -37,22 +37,6 @@ export class Viewmodel {
     this.group = new THREE.Group();
     this.camera.add(this.group);
 
-    // Dedicated Viewmodel Studio Light Rig (matches Sketchfab showcase lighting)
-    const keyLight = new THREE.DirectionalLight(0xfff5ea, 3.2);
-    keyLight.position.set(0.6, 1.2, 0.4);
-    this.group.add(keyLight);
-
-    const fillLight = new THREE.DirectionalLight(0xdbeafe, 1.8);
-    fillLight.position.set(-1.0, 0.4, -0.2);
-    this.group.add(fillLight);
-
-    const underLight = new THREE.DirectionalLight(0xffedd5, 1.4);
-    underLight.position.set(0.1, -1.0, -0.3);
-    this.group.add(underLight);
-
-    const vmAmbient = new THREE.AmbientLight(0xffffff, 1.2);
-    this.group.add(vmAmbient);
-
     // Build models for all three weapons
     this.weapons = {
       m416: this.buildM416(),

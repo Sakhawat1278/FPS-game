@@ -48,8 +48,8 @@ export class RealisticWarehouse {
       floor: new THREE.MeshStandardMaterial({
         map: concreteTex,
         roughnessMap: concreteRough,
-        roughness: 0.65,
-        metalness: 0.05
+        roughness: 0.95,
+        metalness: 0.0
       }),
       ceiling: new THREE.MeshStandardMaterial({
         color: 0x334155,
@@ -220,16 +220,16 @@ export class RealisticWarehouse {
 
   private setupLighting() {
     // 1. Natural sunrise ambient light with shadow contrast
-    const ambient = new THREE.AmbientLight(0xffedd5, 0.45);
+    const ambient = new THREE.AmbientLight(0xffedd5, 0.35);
     this.scene.add(ambient);
 
     // 2. Hemisphere light: clear blue morning sky down, warm terrain bounce up
-    const hemiLight = new THREE.HemisphereLight(0x38bdf8, 0x92400e, 0.5);
+    const hemiLight = new THREE.HemisphereLight(0x38bdf8, 0x78350f, 0.4);
     hemiLight.position.set(0, 50, 0);
     this.scene.add(hemiLight);
 
     // 3. Golden Rising Sun Directional Light (low sunrise angle, high-contrast shadows)
-    const sunLight = new THREE.DirectionalLight(0xffb74d, 2.2);
+    const sunLight = new THREE.DirectionalLight(0xffb74d, 1.6);
     sunLight.position.set(45, 26, -30);
     sunLight.castShadow = true;
     sunLight.shadow.mapSize.width = 2048;
@@ -244,11 +244,11 @@ export class RealisticWarehouse {
     this.scene.add(sunLight);
 
     // 4. Soft sky fill light from opposite horizon
-    const fillLight = new THREE.DirectionalLight(0x60a5fa, 0.4);
+    const fillLight = new THREE.DirectionalLight(0x60a5fa, 0.25);
     fillLight.position.set(-35, 20, 25);
     this.scene.add(fillLight);
 
-    // 5. Warm industrial high-bay lamps
+    // 5. Warm industrial high-bay lamps (subtle accents, no blinding reflections)
     const lampPositions = [
       { x: -20, z: -10, color: 0xfef08a },
       { x: -20, z: 10, color: 0xfef08a },
@@ -259,7 +259,7 @@ export class RealisticWarehouse {
     ];
 
     for (const lp of lampPositions) {
-      const spot = new THREE.SpotLight(lp.color, 1.4, 30, Math.PI / 3.5, 0.45, 1.2);
+      const spot = new THREE.SpotLight(lp.color, 0.7, 24, Math.PI / 4, 0.5, 1.2);
       spot.position.set(lp.x, 9.6, lp.z);
       spot.target.position.set(lp.x, 0, lp.z);
       this.scene.add(spot);
@@ -275,7 +275,13 @@ export class RealisticWarehouse {
 
       const bulb = new THREE.Mesh(
         new THREE.SphereGeometry(0.2, 8, 8),
-        new THREE.MeshBasicMaterial({ color: 0xffffff })
+        new THREE.MeshStandardMaterial({
+          color: 0xfef08a,
+          emissive: 0xf59e0b,
+          emissiveIntensity: 0.25,
+          roughness: 0.8,
+          metalness: 0.1
+        })
       );
       bulb.position.set(lp.x, 9.6, lp.z);
       this.mapGroup.add(bulb);

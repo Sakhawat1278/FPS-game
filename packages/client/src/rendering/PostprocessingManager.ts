@@ -18,18 +18,18 @@ export class PostprocessingManager {
   constructor(renderer: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.PerspectiveCamera) {
     this.renderer = renderer;
 
-    // ACES Filmic Tone Mapping (Balanced, realistic exposure)
+    // ACES Filmic Tone Mapping (Natural, eye-friendly exposure)
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.0;
+    this.renderer.toneMappingExposure = 0.92;
 
     // Setup Effect Composer
     this.composer = new EffectComposer(this.renderer);
     this.renderPass = new RenderPass(scene, camera);
     this.composer.addPass(this.renderPass);
 
-    // Controlled bloom for sun disc and muzzle flashes only (prevents milky white haze)
+    // Subtle bloom (no blinding glares)
     const resolution = new THREE.Vector2(window.innerWidth, window.innerHeight);
-    this.bloomPass = new UnrealBloomPass(resolution, 0.25, 0.4, 0.88);
+    this.bloomPass = new UnrealBloomPass(resolution, 0.12, 0.3, 0.92);
     this.composer.addPass(this.bloomPass);
 
     this.applyPreset('high');
@@ -54,24 +54,24 @@ export class PostprocessingManager {
         this.renderer.shadowMap.enabled = true;
         this.renderer.shadowMap.type = THREE.BasicShadowMap;
         this.bloomPass.enabled = true;
-        this.bloomPass.strength = 0.2;
-        this.bloomPass.threshold = 0.90;
+        this.bloomPass.strength = 0.1;
+        this.bloomPass.threshold = 0.94;
         break;
       case 'high':
         this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
         this.renderer.shadowMap.enabled = true;
         this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         this.bloomPass.enabled = true;
-        this.bloomPass.strength = 0.25;
-        this.bloomPass.threshold = 0.88;
+        this.bloomPass.strength = 0.12;
+        this.bloomPass.threshold = 0.92;
         break;
       case 'ultra':
         this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2.0));
         this.renderer.shadowMap.enabled = true;
         this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         this.bloomPass.enabled = true;
-        this.bloomPass.strength = 0.35;
-        this.bloomPass.threshold = 0.85;
+        this.bloomPass.strength = 0.18;
+        this.bloomPass.threshold = 0.90;
         break;
     }
   }
