@@ -38,6 +38,7 @@ export class WeaponManager {
 
   // Hit callbacks
   public onHit?: (result: DummyHitResult) => void;
+  public onReloadStart?: () => void;
 
   constructor(camera: THREE.PerspectiveCamera, audio: AudioEngine, vfx: VFXManager) {
     this.camera = camera;
@@ -227,6 +228,7 @@ export class WeaponManager {
     this.isAiming = false;
     this.reloadTimer = ammo.mag === 0 ? weapon.reloadTimeEmpty : weapon.reloadTimeTactical;
     this.audio.playReload();
+    if (this.onReloadStart) this.onReloadStart();
     console.log(`[WeaponManager] Reloading ${weapon.name} (${this.reloadTimer}s)...`);
   }
 

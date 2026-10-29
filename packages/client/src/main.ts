@@ -136,11 +136,33 @@ async function bootstrap() {
   });
 
   // Input Callbacks
-  inputManager.onReload = () => weaponManager.startReload();
-  inputManager.onSlot1 = () => weaponManager.switchSlot(1);
-  inputManager.onSlot2 = () => weaponManager.switchSlot(2);
-  inputManager.onSwapPrimary = () => weaponManager.togglePrimaryWeapon();
+  weaponManager.onReloadStart = () => networkController.sendReload();
+  inputManager.onReload = () => {
+    weaponManager.startReload();
+    networkController.sendReload();
+  };
+  inputManager.onSlot1 = () => {
+    weaponManager.switchSlot(1);
+    networkController.sendSwitchWeapon(weaponManager.activeWeapon.id);
+  };
+  inputManager.onSlot2 = () => {
+    weaponManager.switchSlot(2);
+    networkController.sendSwitchWeapon(weaponManager.activeWeapon.id);
+  };
+  inputManager.onSwapPrimary = () => {
+    weaponManager.togglePrimaryWeapon();
+    networkController.sendSwitchWeapon(weaponManager.activeWeapon.id);
+  };
   inputManager.onToggleZoom = () => weaponManager.toggleOperatorZoom();
+
+  // Dev Bot Fill (Lobby button or F4 shortcut)
+  roomLobby.onFillBots = () => networkController.sendFillBots();
+  window.addEventListener('keydown', (e) => {
+    if (e.code === 'F4') {
+      networkController.sendFillBots();
+      console.log('[Dev] Requested bot fill for room (5v5)');
+    }
+  });
 
   // Debug Overlay (F3)
   const debugOverlay = new DebugOverlay(renderer);
@@ -218,6 +240,7 @@ async function bootstrap() {
   // Render Loop
   let lastTime = performance.now();
   let clientTick = 0;
+  const _aimDir = new THREE.Vector3();
 
   function renderLoop() {
     requestAnimationFrame(renderLoop);
@@ -237,12 +260,12 @@ async function bootstrap() {
 
     const input = inputManager.sampleInput(clientTick);
 
-    // Firing Logic
+    // Firing Logic (Zero-allocation aim direction)
     if (input.isShooting && inputManager.isLocked && networkController.isLocalAlive && !pauseMenu.isVisible) {
       const fired = weaponManager.tryFire(now, charController.isSprinting, dummies, warehouse.mapGroup);
       if (fired) {
-        const aimDir = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
-        networkController.sendFireIntent(weaponManager.activeWeapon.id, camera.position, aimDir);
+        _aimDir.set(0, 0, -1).applyQuaternion(camera.quaternion);
+        networkController.sendFireIntent(weaponManager.activeWeapon.id, camera.position, _aimDir);
       }
     }
 

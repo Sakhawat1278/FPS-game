@@ -231,6 +231,21 @@ export class NetworkController {
     this.room.send('fire_intent', msg);
   }
 
+  public sendReload() {
+    if (!this.room || !this.isLocalAlive) return;
+    this.room.send('reload_start');
+  }
+
+  public sendSwitchWeapon(weaponId: WeaponId) {
+    if (!this.room || !this.isLocalAlive) return;
+    this.room.send('switch_weapon', weaponId);
+  }
+
+  public sendFillBots() {
+    if (!this.room) return;
+    this.room.send('dev_fill_bots');
+  }
+
   public update(now: number, cameraPosition: THREE.Vector3) {
     // Update remote players with snapshot interpolation
     for (const [_, remote] of this.remotePlayers.entries()) {

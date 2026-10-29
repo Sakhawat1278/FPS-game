@@ -10,6 +10,7 @@ export class RoomLobby {
   private startBtnEl: HTMLElement | null = null;
   private copyNoticeEl: HTMLElement | null = null;
   public onOpenSettings?: () => void;
+  public onFillBots?: () => void;
 
   constructor() {
     this.container = document.body;
@@ -27,6 +28,7 @@ export class RoomLobby {
             ROOM CODE: <span id="lobby-room-code">------</span>
           </div>
           <div class="lobby-actions">
+            <button id="btn-fill-bots" class="btn-sm" style="color: #fbbf24; border-color: #d97706;">🤖 Fill Bots (5v5)</button>
             <button id="btn-copy-code" class="btn-sm">Copy Code</button>
             <button id="btn-copy-link" class="btn-sm btn-primary">Copy Invite Link</button>
             <button id="btn-lobby-settings" class="btn-sm">Settings</button>
@@ -76,6 +78,12 @@ export class RoomLobby {
   private setupListeners() {
     const btnCopyCode = document.getElementById('btn-copy-code');
     const btnCopyLink = document.getElementById('btn-copy-link');
+    const btnFillBots = document.getElementById('btn-fill-bots');
+
+    btnFillBots?.addEventListener('click', () => {
+      if (this.onFillBots) this.onFillBots();
+      this.showNotice('Populating match with AI bots...');
+    });
 
     btnCopyCode?.addEventListener('click', () => {
       const code = this.roomCodeEl?.innerText;

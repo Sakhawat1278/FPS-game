@@ -20,6 +20,7 @@ export class VFXManager {
 
   // Tracers
   private activeTracers: ActiveTracer[] = [];
+  private tracerPool: THREE.Line[] = [];
   private tracerMaterial: THREE.LineBasicMaterial;
   private tracerGeometry: THREE.BufferGeometry;
 
@@ -66,10 +67,11 @@ export class VFXManager {
   }
 
   public spawnTracer(start: THREE.Vector3, target: THREE.Vector3) {
-    const line = new THREE.Line(this.tracerGeometry.clone(), this.tracerMaterial);
+    const line = this.tracerPool.pop() || new THREE.Line(this.tracerGeometry, this.tracerMaterial);
     line.position.copy(start);
     line.lookAt(target);
-    this.scene.add(line);
+    if (!line.parent) this.scene.add(line);
+    line.visible = true;
 
     this.activeTracers.push({
       line,
@@ -81,6 +83,15 @@ export class VFXManager {
   }
 
   public spawnImpact(hitPoint: THREE.Vector3, normal: THREE.Vector3) {
+    // Limit max active impacts for performance
+    if (this.activeImpacts.length > 16) {
+      const oldest = this.activeImpacts.shift();
+      if (oldest) {
+        this.scene.remove(oldest.points);
+        oldest.points.geometry.dispose();
+      }
+    }
+
     const count = 12;
     const positions = new Float32Array(count * 3);
     const velocities: THREE.Vector3[] = [];
@@ -121,16 +132,20 @@ export class VFXManager {
       }
     }
 
-    // 2. Tracers update
+    // 2. Tracers update with pooling
     for (let i = this.activeTracers.length - 1; i >= 0; i--) {
       const t = this.activeTracers[i];
       const totalDist = t.start.distanceTo(t.target);
       t.progress += (t.speed * dt) / Math.max(1, totalDist);
 
       if (t.progress >= 1.0) {
-        this.scene.remove(t.line);
-        t.line.geometry.dispose();
+        t.line.visible = false;
         this.activeTracers.splice(i, 1);
+        if (this.tracerPool.length < 32) {
+          this.tracerPool.push(t.line);
+        } else {
+          this.scene.remove(t.line);
+        }
       } else {
         t.line.position.lerpVectors(t.start, t.target, t.progress);
       }

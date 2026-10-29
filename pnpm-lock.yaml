@@ -8,9 +8,15 @@ importers:
 
   .:
     devDependencies:
+      colyseus.js:
+        specifier: 0.15.28
+        version: 0.15.28
       concurrently:
         specifier: ^9.1.2
         version: 9.2.5
+      tsx:
+        specifier: ^4.23.15
+        version: 4.23.15
       typescript:
         specifier: ^5.8.2
         version: 5.9.3

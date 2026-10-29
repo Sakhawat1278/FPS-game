@@ -19,6 +19,7 @@ app.get('/health', (req, res) => {
     status: 'ok',
     game: 'Warehouse Strike',
     uptime: process.uptime(),
+    memory: process.memoryUsage(),
     timestamp: Date.now()
   });
 });

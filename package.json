@@ -11,8 +11,9 @@
     "test": "pnpm -r test"
   },
   "devDependencies": {
+    "colyseus.js": "0.15.28",
     "concurrently": "^9.1.2",
+    "tsx": "^4.23.15",
     "typescript": "^5.8.2"
   }
 }
-
